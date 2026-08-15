@@ -1,0 +1,898 @@
+<main class="dashboard">
+  <div class="shell">
+    <section class="hero">
+      <div>
+        <div class="brand">
+          <div class="mark">LG</div>
+          <div>
+            <h1>Dashboard</h1>
+            <p>Panel privado</p>
+          </div>
+        </div>
+
+        <div class="hero-title">Operacion <span>{{ selectedPlatform() }}</span></div>
+        <p class="hero-copy">Controla catalogo, pagos, Excel, cuentas, IMAP, tutoriales y accesos NetCode desde un solo panel.</p>
+      </div>
+
+      <div class="hero-actions">
+        <button class="btn primary full" type="button" (click)="syncExcel()" [disabled]="syncing()">
+          <svg lucideRefreshCcw size="16"></svg>
+          {{ syncing() ? 'Leyendo Excel...' : 'Leer ' + selectedPlatform() }}
+        </button>
+        <a class="btn full" href="/netcode/codigos" target="_blank">
+          <svg lucideHome size="16"></svg>
+          Hogar / Code temporal
+        </a>
+        <a class="btn full" href="/netcode/inicio-sesion" target="_blank">
+          <svg lucideShieldCheck size="16"></svg>
+          Inicio sesion 4 digitos
+        </a>
+        <button class="btn full" type="button" (click)="showSection('imap')">
+          <svg lucideInbox size="16"></svg>
+          IMAP / Cron
+        </button>
+        <button class="btn full" type="button" (click)="showSection('tutorials')">
+          <svg lucideBookOpen size="16"></svg>
+          Subir tutoriales
+        </button>
+        <button class="btn danger full" type="button" (click)="logout()">
+          <svg lucideLogOut size="16"></svg>
+          Cerrar sesion
+        </button>
+      </div>
+    </section>
+
+    @if (message()) {
+      <div class="notice ok">{{ message() }}</div>
+    }
+
+    @if (error()) {
+      <div class="notice danger">{{ error() }}</div>
+    }
+
+    @if (loading()) {
+      <div class="section empty">Cargando dashboard...</div>
+    } @else {
+      <nav class="section-tabs" aria-label="Secciones dashboard">
+        <button type="button" [class.active]="activeSection() === 'overview'" (click)="showSection('overview')">Resumen</button>
+        <button type="button" [class.active]="activeSection() === 'catalog'" (click)="showSection('catalog')">Catalogo</button>
+        <button type="button" [class.active]="activeSection() === 'payments'" (click)="showSection('payments')">Pagos / QR</button>
+        <button type="button" [class.active]="activeSection() === 'excel'" (click)="showSection('excel')">Tablas Excel</button>
+        <button type="button" [class.active]="activeSection() === 'accounts'" (click)="showSection('accounts')">Cuentas</button>
+        <button type="button" [class.active]="activeSection() === 'profiles'" (click)="showSection('profiles')">Perfiles</button>
+        <button type="button" [class.active]="activeSection() === 'ranges'" (click)="showSection('ranges')">Rangos</button>
+        <button type="button" [class.active]="activeSection() === 'imap'" (click)="showSection('imap')">IMAP</button>
+        <button type="button" [class.active]="activeSection() === 'tutorials'" (click)="showSection('tutorials')">Tutoriales</button>
+        <button type="button" [class.active]="activeSection() === 'admins'" (click)="showSection('admins')">Admins</button>
+      </nav>
+
+      <section class="section-workspace">
+        <div class="workspace-head">
+          <div>
+            <span>Seccion actual</span>
+            <h2>{{ sectionTitle() }} - {{ selectedPlatform() }}</h2>
+          </div>
+          <button class="btn" type="button" (click)="load()">Actualizar datos</button>
+        </div>
+
+        <section class="platform-strip" aria-label="Plataformas">
+          @for (platform of platformSummaries(); track platform.plataforma) {
+            <article class="platform-chip" [class.active]="selectedPlatform() === platform.plataforma">
+              <div>
+                <span>{{ platform.plataforma }}</span>
+                <b>{{ platform.accounts }} cuenta{{ platform.accounts === 1 ? '' : 's' }}</b>
+                <small>{{ platform.profiles }} perfil{{ platform.profiles === 1 ? '' : 'es' }}</small>
+              </div>
+              <button class="btn mini" type="button" (click)="selectPlatform(platform.plataforma)">Ver</button>
+            </article>
+          }
+        </section>
+
+        <section class="action-bubbles" aria-label="Accesos rapidos">
+          <button type="button" (click)="showSection('accounts')">Cuentas Netflix</button>
+          <button type="button" (click)="showSection('profiles')">Perfiles Netflix</button>
+          <button type="button" (click)="showSection('catalog')">Catalogo</button>
+          <button type="button" (click)="showSection('payments')">Pagos / QR</button>
+          <button type="button" (click)="showSection('imap')">IMAP / Cron</button>
+          <button type="button" (click)="showSection('admins')">Admins</button>
+          <a href="/netcode/codigos" target="_blank">Hogar y temporal</a>
+          <a href="/netcode/inicio-sesion" target="_blank">Code 4 digitos</a>
+          <button type="button" (click)="showSection('tutorials')">Tutoriales</button>
+        </section>
+
+      @if (activeSection() === 'overview') {
+        @if (platformStats(); as s) {
+          <section class="metrics">
+            <div class="metric"><span>Cuentas</span><b>{{ s.cuentas }}</b><small>{{ selectedPlatform() }}</small></div>
+            <div class="metric"><span>Perfiles</span><b>{{ s.perfiles }}</b><small>{{ selectedPlatform() }}</small></div>
+            <div class="metric"><span>Ocupados</span><b>{{ s.ocupados }}</b><small>Activos segun Excel</small></div>
+            <div class="metric"><span>Disponibles</span><b>{{ s.disponibles }}</b><small>Libres segun Excel</small></div>
+            <div class="metric"><span>Ultima lectura</span><b class="date">{{ s.lastSync ? (s.lastSync | date: 'dd/MM HH:mm') : 'Nunca' }}</b><small>Manual</small></div>
+          </section>
+        }
+
+        <section class="quick">
+          <article class="quick-card">
+            <div><h2>Excel</h2><p>Configura y lee tablas separadas dentro de este dashboard.</p></div>
+            <button class="btn" type="button" (click)="showSection('excel')"><svg lucideFileSpreadsheet size="16"></svg>Configurar</button>
+          </article>
+          <article class="quick-card">
+            <div><h2>Tutoriales</h2><p>Sube imagen, video o pasos visibles para clientes.</p></div>
+            <button class="btn" type="button" (click)="showSection('tutorials')"><svg lucideBookOpen size="16"></svg>Editar</button>
+          </article>
+          <article class="quick-card">
+            <div><h2>Plataformas</h2><p>Administra catalogo, precios, orden e imagenes.</p></div>
+            <button class="btn" type="button" (click)="showSection('catalog')"><svg lucideSettings size="16"></svg>Gestionar</button>
+          </article>
+          <article class="quick-card">
+            <div><h2>Inicio publico</h2><p>Abre la pantalla principal tal como la ve el cliente.</p></div>
+            <a class="btn" href="/" target="_blank"><svg lucideHome size="16"></svg>Ver inicio</a>
+          </article>
+        </section>
+
+      }
+
+      @if (activeSection() === 'catalog') {
+      <section class="section">
+        <div class="section-head">
+          <div>
+            <h2>Catalogo de plataformas</h2>
+            <p>Gestiona lo que ve el cliente en /plataformas: nombre, precio, imagen, beneficios, estado y orden.</p>
+          </div>
+          <a class="btn" href="/plataformas" target="_blank">Ver tienda</a>
+        </div>
+
+        <form class="catalog-editor" (ngSubmit)="saveCatalog()">
+          <label>
+            <span>Nombre</span>
+            <input [ngModel]="catalogForm().nombre" (ngModelChange)="updateCatalogField('nombre', $event)" name="catalog_nombre" required />
+          </label>
+          <label>
+            <span>Precio</span>
+            <input type="number" min="0" step="0.01" [ngModel]="catalogForm().precio" (ngModelChange)="updateCatalogField('precio', +$event)" name="catalog_precio" required />
+          </label>
+          <label class="wide">
+            <span>Imagen URL</span>
+            <input [ngModel]="catalogForm().imagen" (ngModelChange)="updateCatalogField('imagen', $event)" name="catalog_imagen" placeholder="https://..." />
+          </label>
+          <label class="wide">
+            <span>Descripcion</span>
+            <textarea [ngModel]="catalogForm().descripcion" (ngModelChange)="updateCatalogField('descripcion', $event)" name="catalog_descripcion"></textarea>
+          </label>
+          <label class="wide">
+            <span>Caracteristicas, una por linea</span>
+            <textarea [ngModel]="catalogForm().features" (ngModelChange)="updateCatalogField('features', $event)" name="catalog_features"></textarea>
+          </label>
+          <label class="wide">
+            <span>Como se activa</span>
+            <textarea [ngModel]="catalogForm().activacion" (ngModelChange)="updateCatalogField('activacion', $event)" name="catalog_activacion"></textarea>
+          </label>
+          <label class="wide">
+            <span>Terminos y condiciones</span>
+            <textarea [ngModel]="catalogForm().terminos" (ngModelChange)="updateCatalogField('terminos', $event)" name="catalog_terminos"></textarea>
+          </label>
+          <label class="check">
+            <input type="checkbox" [ngModel]="catalogForm().activo" (ngModelChange)="updateCatalogField('activo', $event)" name="catalog_activo" />
+            <span>Activo en catalogo</span>
+          </label>
+          <div class="catalog-form-actions">
+            <button class="btn primary" type="submit" [disabled]="savingCatalog()">
+              {{ savingCatalog() ? 'Guardando...' : (editingCatalogId() ? 'Guardar cambios' : 'Crear plataforma') }}
+            </button>
+            @if (editingCatalogId()) {
+              <button class="btn" type="button" (click)="cancelCatalogEdit()">Cancelar</button>
+            }
+          </div>
+        </form>
+
+        <div class="catalog-grid">
+          @for (platform of catalog(); track platform.id) {
+            <article class="catalog-card" [class.inactive]="!platform.activo">
+              <div class="catalog-image">
+                @if (platform.imagen) {
+                  <img [src]="platform.imagen" [alt]="platform.nombre" />
+                } @else {
+                  <span>{{ platform.nombre.slice(0, 2).toUpperCase() }}</span>
+                }
+              </div>
+              <div class="catalog-body">
+                <div class="catalog-title">
+                  <div>
+                    <h3>{{ platform.nombre }}</h3>
+                    <small>Orden {{ platform.orden || '-' }} - {{ platform.activo ? 'Activo' : 'Oculto' }}</small>
+                  </div>
+                  <b>S/ {{ platform.precio | number: '1.2-2' }}</b>
+                </div>
+                @if (platform.descripcion) {
+                  <p class="catalog-description">{{ platform.descripcion }}</p>
+                }
+                <ul>
+                  @for (feature of platform.features; track feature) {
+                    <li>{{ feature }}</li>
+                  } @empty {
+                    <li>Sin caracteristicas.</li>
+                  }
+                </ul>
+                <div class="catalog-info">
+                  <div><span>Activacion</span><p>{{ platform.activacion || 'Se coordina despues del pago.' }}</p></div>
+                  <div><span>Terminos</span><p>{{ platform.terminos || 'Uso personal mensual. No modificar datos de cuenta.' }}</p></div>
+                </div>
+                <div class="catalog-actions">
+                  <button class="btn mini" type="button" (click)="moveCatalog(platform, 'up')">Subir</button>
+                  <button class="btn mini" type="button" (click)="moveCatalog(platform, 'down')">Bajar</button>
+                  <button class="btn mini primary" type="button" (click)="editCatalog(platform)">Editar</button>
+                  <button class="btn mini danger" type="button" (click)="deleteCatalog(platform)">Eliminar</button>
+                </div>
+              </div>
+            </article>
+          } @empty {
+            <div class="empty">No hay plataformas en catalogo.</div>
+          }
+        </div>
+      </section>
+      }
+
+      @if (activeSection() === 'payments') {
+      <section class="section">
+        <div class="section-head">
+          <div>
+            <h2>Pagos, QR y vendedor</h2>
+            <p>Edita los datos que ve el cliente en /pago. Los cambios se guardan en Laravel y no dependen de recompilar Angular.</p>
+          </div>
+          <a class="btn" href="/pago" target="_blank">Ver pago</a>
+        </div>
+
+        <form class="payment-editor" (ngSubmit)="savePayments()">
+          <div class="payment-block">
+            <h3>Datos del vendedor</h3>
+            <div class="payment-fields">
+              <label><span>Negocio</span><input [ngModel]="paymentForm().seller.business_name" (ngModelChange)="updatePaymentSellerField('business_name', $event)" name="seller_business_name" required /></label>
+              <label><span>Nombre publico</span><input [ngModel]="paymentForm().seller.display_name" (ngModelChange)="updatePaymentSellerField('display_name', $event)" name="seller_display_name" required /></label>
+              <label><span>Responsable</span><input [ngModel]="paymentForm().seller.contact_name" (ngModelChange)="updatePaymentSellerField('contact_name', $event)" name="seller_contact_name" /></label>
+              <label><span>WhatsApp principal</span><input [ngModel]="paymentForm().seller.whatsapp" (ngModelChange)="updatePaymentSellerField('whatsapp', $event)" name="seller_whatsapp" required /></label>
+              <label><span>Telefono visible</span><input [ngModel]="paymentForm().seller.phone" (ngModelChange)="updatePaymentSellerField('phone', $event)" name="seller_phone" /></label>
+              <label><span>Correo</span><input type="email" [ngModel]="paymentForm().seller.email" (ngModelChange)="updatePaymentSellerField('email', $event)" name="seller_email" /></label>
+              <label class="wide"><span>Direccion / nota</span><input [ngModel]="paymentForm().seller.address" (ngModelChange)="updatePaymentSellerField('address', $event)" name="seller_address" /></label>
+              <label class="wide"><span>Texto de soporte</span><input [ngModel]="paymentForm().seller.support_text" (ngModelChange)="updatePaymentSellerField('support_text', $event)" name="seller_support_text" /></label>
+              <label class="wide"><span>Instrucciones de pago</span><textarea [ngModel]="paymentForm().instructions" (ngModelChange)="updatePaymentInstructions($event)" name="payment_instructions" required></textarea></label>
+            </div>
+          </div>
+
+          <div class="payment-methods">
+            @for (method of paymentForm().methods; track method.id; let i = $index) {
+              <article class="payment-method-card" [class.inactive]="!method.active">
+                <header>
+                  <div>
+                    <h3>Metodo {{ method.id }}</h3>
+                    <p>{{ method.title }} - {{ method.account_phone }}</p>
+                  </div>
+                  <label class="toggle">
+                    <input type="checkbox" [ngModel]="method.active" (ngModelChange)="updatePaymentField(i, 'active', $event)" name="method_active_{{ method.id }}" />
+                    <span>Activo</span>
+                  </label>
+                </header>
+
+                <div class="payment-method-body">
+                  <div class="qr-preview">
+                    <img [src]="method.qr_src || method.qr_fallback" [alt]="'QR ' + method.title" />
+                    <label class="qr-upload">
+                      <input type="file" accept="image/jpeg,image/png,image/webp" (change)="uploadPaymentQr(method, $event)" [disabled]="uploadingPaymentQr() === method.id" />
+                      <span>{{ uploadingPaymentQr() === method.id ? 'Subiendo...' : 'Subir QR' }}</span>
+                    </label>
+                  </div>
+                  <div class="payment-fields compact">
+                    <label><span>Titulo</span><input [ngModel]="method.title" (ngModelChange)="updatePaymentField(i, 'title', $event)" name="method_title_{{ method.id }}" required /></label>
+                    <label><span>Subtitulo</span><input [ngModel]="method.subtitle" (ngModelChange)="updatePaymentField(i, 'subtitle', $event)" name="method_subtitle_{{ method.id }}" /></label>
+                    <label><span>Etiqueta</span><input [ngModel]="method.badge" (ngModelChange)="updatePaymentField(i, 'badge', $event)" name="method_badge_{{ method.id }}" /></label>
+                    <label><span>Titular</span><input [ngModel]="method.account_name" (ngModelChange)="updatePaymentField(i, 'account_name', $event)" name="method_account_name_{{ method.id }}" required /></label>
+                    <label><span>Numero destino</span><input [ngModel]="method.account_phone" (ngModelChange)="updatePaymentField(i, 'account_phone', $event)" name="method_account_phone_{{ method.id }}" required /></label>
+                    <label><span>Numero copiar</span><input [ngModel]="method.copy_phone" (ngModelChange)="updatePaymentField(i, 'copy_phone', $event)" name="method_copy_phone_{{ method.id }}" required /></label>
+                    <label><span>WhatsApp comprobante</span><input [ngModel]="method.whatsapp" (ngModelChange)="updatePaymentField(i, 'whatsapp', $event)" name="method_whatsapp_{{ method.id }}" required /></label>
+                    <label class="check">
+                      <input type="checkbox" [ngModel]="method.recommended" (ngModelChange)="updatePaymentField(i, 'recommended', $event)" name="method_recommended_{{ method.id }}" />
+                      <span>Recomendado</span>
+                    </label>
+                    <label class="wide"><span>QR imagen URL o ruta</span><input [ngModel]="method.qr_src" (ngModelChange)="updatePaymentField(i, 'qr_src', $event)" name="method_qr_src_{{ method.id }}" required /></label>
+                    <label class="wide"><span>QR respaldo URL</span><input [ngModel]="method.qr_fallback" (ngModelChange)="updatePaymentField(i, 'qr_fallback', $event)" name="method_qr_fallback_{{ method.id }}" /></label>
+                  </div>
+                </div>
+              </article>
+            }
+          </div>
+
+          <div class="catalog-form-actions payment-actions">
+            <button class="btn primary" type="submit" [disabled]="savingPayments()">
+              {{ savingPayments() ? 'Guardando...' : 'Guardar pagos y QR' }}
+            </button>
+          </div>
+        </form>
+      </section>
+      }
+
+      @if (activeSection() === 'admins') {
+      <section class="section">
+        <div class="section-head">
+          <div>
+            <h2>Admins y mantenimiento</h2>
+            <p>Crea o cambia usuarios administradores. Las contrasenas no se muestran, solo se reemplazan si escribes una nueva.</p>
+          </div>
+        </div>
+
+        <form class="admin-editor" (ngSubmit)="saveAdmin()">
+          <label>
+            <span>Nombre</span>
+            <input [ngModel]="adminForm().name" (ngModelChange)="updateAdminField('name', $event)" name="admin_name" required />
+          </label>
+          <label>
+            <span>Correo</span>
+            <input type="email" [ngModel]="adminForm().email" (ngModelChange)="updateAdminField('email', $event)" name="admin_email" required />
+          </label>
+          <label>
+            <span>Contrasena</span>
+            <input type="password" [ngModel]="adminForm().password" (ngModelChange)="updateAdminField('password', $event)" name="admin_password" [placeholder]="editingAdminId() ? 'Vacio = conservar' : 'Minimo 8 caracteres'" />
+          </label>
+          <div class="catalog-form-actions">
+            <button class="btn primary" type="submit" [disabled]="savingAdmin()">
+              {{ savingAdmin() ? 'Guardando...' : (editingAdminId() ? 'Guardar admin' : 'Crear admin') }}
+            </button>
+            @if (editingAdminId()) {
+              <button class="btn" type="button" (click)="cancelAdminEdit()">Cancelar</button>
+            }
+          </div>
+        </form>
+
+        <div class="admin-list">
+          @for (admin of admins(); track admin.id) {
+            <article class="admin-card">
+              <div>
+                <b>{{ admin.name }}</b>
+                <span>{{ admin.email }}</span>
+              </div>
+              <div class="catalog-actions">
+                <button class="btn mini primary" type="button" (click)="editAdmin(admin)">Editar</button>
+                <button class="btn mini danger" type="button" (click)="deleteAdmin(admin)">Eliminar</button>
+              </div>
+            </article>
+          }
+        </div>
+
+        <div class="danger-zone">
+          <div>
+            <h3>Limpiar cuentas importadas</h3>
+            <p>Elimina cuentas y perfiles importados desde Excel. No elimina admins, catalogo ni tutoriales.</p>
+          </div>
+          <input [ngModel]="clearConfirmation()" (ngModelChange)="clearConfirmation.set($event)" name="clear_confirmation" placeholder="Escribe LIMPIAR" />
+          <button class="btn danger" type="button" (click)="clearImportedData()" [disabled]="clearConfirmation() !== 'LIMPIAR' || clearingData()">
+            {{ clearingData() ? 'Limpiando...' : 'Limpiar cuentas' }}
+          </button>
+        </div>
+      </section>
+      }
+
+      @if (activeSection() === 'excel') {
+      <section id="excel-tables" class="section">
+        <div class="section-head">
+          <div>
+            <h2>{{ editingRangeId() ? 'Editar tabla Excel' : 'Nueva tabla Excel' }}</h2>
+            <p>Define tablas independientes por plataforma, hoja, filas y URL. Puedes leer solo una tabla sin sincronizar las demas.</p>
+          </div>
+          @if (editingRangeId()) {
+            <button class="btn" type="button" (click)="cancelRangeEdit()">Cancelar edicion</button>
+          }
+        </div>
+
+        <form class="range-form" (ngSubmit)="saveRange()">
+          <label>
+            <span>Plataforma</span>
+            <input [ngModel]="rangeForm().plataforma" (ngModelChange)="updateRangeField('plataforma', $event)" name="plataforma" placeholder="Netflix Premium, Disney, Prime" required />
+          </label>
+          <label>
+            <span>Nombre tabla</span>
+            <input [ngModel]="rangeForm().nombre_tabla" (ngModelChange)="updateRangeField('nombre_tabla', $event)" name="nombre_tabla" placeholder="Netflix bot codigos, Disney principal" />
+          </label>
+          <label>
+            <span>Slug producto</span>
+            <input [ngModel]="rangeForm().producto_slug" (ngModelChange)="updateRangeField('producto_slug', $event)" name="producto_slug" placeholder="netflix-premium" />
+          </label>
+          <label class="wide">
+            <span>URL del Excel</span>
+            <input [ngModel]="rangeForm().archivo_url" (ngModelChange)="updateRangeField('archivo_url', $event)" name="archivo_url" placeholder="https://docs.google.com/spreadsheets/..." required />
+          </label>
+          <label>
+            <span>Hoja</span>
+            <input [ngModel]="rangeForm().hoja_excel" (ngModelChange)="updateRangeField('hoja_excel', $event)" name="hoja_excel" required />
+          </label>
+          <label>
+            <span>Fila inicio</span>
+            <input type="number" [ngModel]="rangeForm().fila_inicio" (ngModelChange)="updateRangeField('fila_inicio', +$event)" name="fila_inicio" min="1" required />
+          </label>
+          <label>
+            <span>Fila fin</span>
+            <input type="number" [ngModel]="rangeForm().fila_fin" (ngModelChange)="updateRangeField('fila_fin', +$event)" name="fila_fin" min="1" required />
+          </label>
+          <label class="wide">
+            <span>URL bot codigos</span>
+            <input [ngModel]="rangeForm().bot_codigo_url" (ngModelChange)="updateRangeField('bot_codigo_url', $event)" name="bot_codigo_url" placeholder="URL opcional del bot de codigos" />
+          </label>
+          <label class="wide">
+            <span>URL bot soporte / Netflix</span>
+            <input [ngModel]="rangeForm().bot_soporte_url" (ngModelChange)="updateRangeField('bot_soporte_url', $event)" name="bot_soporte_url" placeholder="URL opcional de otro bot o soporte" />
+          </label>
+
+          <div class="columns-grid">
+            <label><span>Perfil</span><input [ngModel]="rangeForm().columna_perfil" (ngModelChange)="updateRangeField('columna_perfil', $event)" name="columna_perfil" /></label>
+            <label><span>PIN</span><input [ngModel]="rangeForm().columna_pin" (ngModelChange)="updateRangeField('columna_pin', $event)" name="columna_pin" /></label>
+            <label><span>WhatsApp</span><input [ngModel]="rangeForm().columna_numero" (ngModelChange)="updateRangeField('columna_numero', $event)" name="columna_numero" /></label>
+            <label><span>IGARLOS</span><input [ngModel]="rangeForm().columna_vendedor_igarlos" (ngModelChange)="updateRangeField('columna_vendedor_igarlos', $event)" name="columna_vendedor_igarlos" /></label>
+            <label><span>NIKOL</span><input [ngModel]="rangeForm().columna_vendedor_nikol" (ngModelChange)="updateRangeField('columna_vendedor_nikol', $event)" name="columna_vendedor_nikol" /></label>
+            <label><span>Costo</span><input [ngModel]="rangeForm().columna_costo" (ngModelChange)="updateRangeField('columna_costo', $event)" name="columna_costo" /></label>
+            <label><span>Inicio</span><input [ngModel]="rangeForm().columna_fecha_inicio" (ngModelChange)="updateRangeField('columna_fecha_inicio', $event)" name="columna_fecha_inicio" /></label>
+            <label><span>Fin</span><input [ngModel]="rangeForm().columna_fecha_fin" (ngModelChange)="updateRangeField('columna_fecha_fin', $event)" name="columna_fecha_fin" /></label>
+            <label><span>Estado</span><input [ngModel]="rangeForm().columna_estado" (ngModelChange)="updateRangeField('columna_estado', $event)" name="columna_estado" /></label>
+            <label><span>Correo</span><input [ngModel]="rangeForm().columna_correo" (ngModelChange)="updateRangeField('columna_correo', $event)" name="columna_correo" /></label>
+            <label><span>Password</span><input [ngModel]="rangeForm().columna_password" (ngModelChange)="updateRangeField('columna_password', $event)" name="columna_password" /></label>
+            <label><span>Acceso cliente</span><input [ngModel]="rangeForm().columna_cliente_acceso_usuario" (ngModelChange)="updateRangeField('columna_cliente_acceso_usuario', $event)" name="columna_cliente_acceso_usuario" /></label>
+          </div>
+
+          <label class="check">
+            <input type="checkbox" [ngModel]="rangeForm().activo" (ngModelChange)="updateRangeField('activo', $event)" name="activo" />
+            <span>Tabla activa</span>
+          </label>
+
+          <button class="btn primary" type="submit" [disabled]="savingRange()">
+            {{ savingRange() ? 'Guardando...' : (editingRangeId() ? 'Guardar cambios' : 'Crear tabla') }}
+          </button>
+        </form>
+      </section>
+      }
+
+      @if (activeSection() === 'accounts') {
+      <section class="section">
+        <div class="section-head">
+          <div>
+            <h2>Cuentas y perfiles</h2>
+            <p>Vista agrupada para revisar rapidamente correo, clave, PIN, WhatsApp y vencimiento.</p>
+          </div>
+          <a class="btn" href="/admin/excel-import-ranges">Rangos Excel</a>
+        </div>
+
+        @if (platformAccounts().length === 0) {
+          <div class="empty">No hay cuentas importadas. Presiona Leer Excel ahora o configura los rangos.</div>
+        } @else {
+          <div class="accounts">
+            @for (account of platformAccounts(); track account.id) {
+              <article class="account">
+                <div class="account-top">
+                  <div class="account-email">{{ account.email || 'Cuenta sin correo' }}</div>
+                  <div class="password">{{ account.password || 'Sin contrasena' }}</div>
+                  <div class="tags">
+                    <span class="tag" [ngClass]="account.activo ? 'ok' : 'warn'">{{ account.activo ? 'Activa' : 'Inactiva' }}</span>
+                    <span class="tag">{{ account.perfiles_usados }}/{{ account.perfiles_total }} perfiles</span>
+                    <span class="tag">{{ account.source_hoja_excel || '-' }} #{{ account.source_row || '-' }}</span>
+                    <span class="tag">{{ account.bot_preferencia === 'principal' ? 'Bot principal' : 'Bot propio' }}</span>
+                    @if (account.cliente_acceso_usuario) {
+                      <span class="tag">Acceso: {{ account.cliente_acceso_usuario }}</span>
+                    }
+                  </div>
+
+                  <div class="account-bots">
+                    <button class="btn mini primary" type="button" (click)="editAccountBots(account)">Editar acceso</button>
+                  </div>
+
+                  @if (editingAccountId() === account.id) {
+                    <form class="account-bot-form" (ngSubmit)="saveAccountBots()">
+                      <label>
+                        <span>Usuario acceso cliente</span>
+                        <input [ngModel]="accountBotForm().cliente_acceso_usuario" (ngModelChange)="updateAccountBotField('cliente_acceso_usuario', $event)" name="cliente_acceso_usuario" placeholder="Usuario o codigo de acceso unico" />
+                      </label>
+                      <div class="account-bot-actions">
+                        <button class="btn mini primary" type="submit" [disabled]="savingAccountBots()">{{ savingAccountBots() ? 'Guardando...' : 'Guardar' }}</button>
+                        <button class="btn mini" type="button" (click)="cancelAccountBotEdit()">Cancelar</button>
+                      </div>
+                    </form>
+                  }
+                </div>
+
+                <div class="profiles">
+                  @for (profile of account.perfiles; track profile.id) {
+                    <div class="profile">
+                      <div class="profile-title">
+                        <b>{{ profile.nombre_perfil }}</b>
+                        <span class="tag" [ngClass]="profile.ocupado ? 'ok' : 'warn'">{{ profileState(profile) }}</span>
+                      </div>
+                      <div class="profile-data">
+                        <span>PIN: <b>{{ profile.pin || '-' }}</b></span>
+                        <span>WhatsApp: <b>{{ profile.numero || '-' }}</b> @if (profile.numero_tipo === 'internacional') { <em>Internacional</em> }</span>
+                        <span>Acceso: <b>{{ profile.cliente_acceso_usuario || '-' }}</b></span>
+                        <span>Vendedor: <b>{{ profile.vendedor || '-' }}</b></span>
+                        <span>Costo: <b>{{ money(profile.costo) }}</b></span>
+                        <span>Inicio: <b>{{ profile.fecha_inicio ? (profile.fecha_inicio | date: 'dd/MM/yyyy') : '-' }}</b></span>
+                        <span>Vence: <b>{{ profile.fecha_fin ? (profile.fecha_fin | date: 'dd/MM/yyyy') : '-' }}</b></span>
+                      </div>
+                    </div>
+                  }
+                </div>
+              </article>
+            }
+          </div>
+        }
+      </section>
+      }
+
+      @if (activeSection() === 'profiles') {
+      <section class="section">
+        <div class="section-head">
+          <div>
+            <h2>Detalle de perfiles</h2>
+            <p>Tabla para busqueda y revision fina despues de leer Excel.</p>
+          </div>
+        </div>
+
+        @if (platformProfiles().length === 0) {
+          <div class="empty">No hay perfiles importados todavia.</div>
+        } @else {
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Perfil</th>
+                  <th>PIN</th>
+                  <th>Numero</th>
+                  <th>Acceso</th>
+                  <th>Vendedor</th>
+                  <th>Costo</th>
+                  <th>Inicio</th>
+                  <th>Fin</th>
+                  <th>Estado</th>
+                  <th>Correo</th>
+                  <th>Contrasena</th>
+                  <th>Hoja/Fila</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (profile of platformProfiles(); track profile.id) {
+                  <tr>
+                    <td><b>{{ profile.nombre_perfil }}</b></td>
+                    <td>{{ profile.pin || '-' }}</td>
+                    <td>
+                      {{ profile.numero || '-' }}
+                      @if (profile.numero_tipo === 'internacional') {
+                        <span class="tag warn">Internacional</span>
+                      }
+                    </td>
+                    <td>{{ profile.cliente_acceso_usuario || '-' }}</td>
+                    <td>{{ profile.vendedor || '-' }}</td>
+                    <td>{{ money(profile.costo) }}</td>
+                    <td>{{ profile.fecha_inicio ? (profile.fecha_inicio | date: 'dd/MM/yyyy') : '-' }}</td>
+                    <td>{{ profile.fecha_fin ? (profile.fecha_fin | date: 'dd/MM/yyyy') : '-' }}</td>
+                    <td><span class="tag" [ngClass]="profile.ocupado ? 'ok' : 'warn'">{{ profileState(profile) }}</span></td>
+                    <td>{{ profile.cuenta?.email || '-' }}</td>
+                    <td>{{ profile.cuenta?.password || '-' }}</td>
+                    <td>{{ profile.source_hoja_excel || '-' }} #{{ profile.source_row || '-' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+      }
+
+      @if (activeSection() === 'ranges') {
+      <section class="platform-groups">
+        @for (group of platformGroups(); track group.plataforma) {
+          <article class="platform-group">
+            <header>
+              <div>
+                <h2>{{ group.plataforma }}</h2>
+                <p>{{ group.ranges.length }} tabla{{ group.ranges.length === 1 ? '' : 's' }} configurada{{ group.ranges.length === 1 ? '' : 's' }}. Ultima lectura: {{ group.lastSync ? (group.lastSync | date: 'dd/MM/yyyy HH:mm') : '-' }}</p>
+              </div>
+              <div class="group-actions">
+                <button class="btn primary" type="button" (click)="syncExcel(undefined, group.plataforma)" [disabled]="syncing()">
+                  Leer {{ group.plataforma }}
+                </button>
+                <button class="btn" type="button" (click)="usePlatform(group.plataforma)">Agregar tabla</button>
+              </div>
+            </header>
+
+            <div class="range-cards">
+              @for (range of group.ranges; track range.id) {
+                <article class="range-card">
+                  <div class="range-main">
+                    <span class="tag" [ngClass]="range.activo ? 'ok' : 'warn'">{{ range.activo ? 'Activa' : 'Inactiva' }}</span>
+                    <h3>{{ range.nombre_tabla || range.hoja_excel }}</h3>
+                    <p>{{ range.hoja_excel }} - filas {{ range.fila_inicio }}-{{ range.fila_fin }}</p>
+                    <small>{{ range.archivo_url || 'Sin URL Excel' }}</small>
+                  </div>
+
+                  <div class="bot-links">
+                    <button class="btn mini" type="button" (click)="openUrl(range.bot_codigo_masked_url)" [disabled]="!range.bot_codigo_masked_url">Bot codigos</button>
+                    <button class="btn mini" type="button" (click)="openUrl(range.bot_soporte_masked_url)" [disabled]="!range.bot_soporte_masked_url">Bot soporte</button>
+                  </div>
+
+                  <div class="range-actions">
+                    <button class="btn mini primary" type="button" (click)="syncExcel(range.id)" [disabled]="syncingRangeId() === range.id">
+                      {{ syncingRangeId() === range.id ? 'Leyendo...' : 'Leer tabla' }}
+                    </button>
+                    <button class="btn mini" type="button" (click)="editRange(range)">Editar</button>
+                    <button class="btn mini danger" type="button" (click)="deleteRange(range)">Eliminar</button>
+                  </div>
+                </article>
+              }
+            </div>
+          </article>
+        } @empty {
+          <section class="section empty">No hay tablas configuradas.</section>
+        }
+      </section>
+
+      <section class="section compact-table">
+        <div class="section-head">
+          <div>
+            <h2>Vista tecnica</h2>
+            <p>Detalle tabular de todos los rangos configurados.</p>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Plataforma</th>
+                <th>Hoja</th>
+                <th>Desde</th>
+                <th>Hasta</th>
+                <th>Estado</th>
+                <th>Ultima lectura</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (range of ranges(); track range.id) {
+                <tr>
+                  <td>
+                    <b>{{ range.plataforma }}</b>
+                    <small>{{ range.nombre_tabla || '-' }}</small>
+                  </td>
+                  <td>{{ range.hoja_excel }}</td>
+                  <td>{{ range.fila_inicio }}</td>
+                  <td>{{ range.fila_fin }}</td>
+                  <td><span class="tag" [ngClass]="range.activo ? 'ok' : 'warn'">{{ range.activo ? 'Activo' : 'Inactivo' }}</span></td>
+                  <td>{{ range.ultimo_sync_at ? (range.ultimo_sync_at | date: 'dd/MM/yyyy HH:mm') : '-' }}</td>
+                  <td class="actions-cell">
+                    <button class="btn mini primary" type="button" (click)="syncExcel(range.id)" [disabled]="syncingRangeId() === range.id">
+                      {{ syncingRangeId() === range.id ? 'Leyendo...' : 'Leer tabla' }}
+                    </button>
+                    <button class="btn mini" type="button" (click)="editRange(range)">Editar</button>
+                    <button class="btn mini danger" type="button" (click)="deleteRange(range)">Eliminar</button>
+                  </td>
+                </tr>
+              } @empty {
+                <tr><td colspan="7">No hay rangos configurados.</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+      }
+
+      @if (activeSection() === 'imap') {
+      <section class="section">
+        <div class="section-head">
+          <div>
+            <h2>IMAP / Cron Netflix</h2>
+            <p>Cron externo para leer correos de hogar, code temporal y codigo de acceso cada minuto.</p>
+          </div>
+          <div class="imap-actions">
+            <button class="btn" type="button" (click)="testImap()" [disabled]="testingImap()">
+              <svg lucideShieldCheck size="16"></svg>
+              {{ testingImap() ? 'Probando...' : 'Probar conexion' }}
+            </button>
+            <button class="btn primary" type="button" (click)="runImap()" [disabled]="runningImap()">
+              <svg lucideInbox size="16"></svg>
+              {{ runningImap() ? 'Leyendo IMAP...' : 'Ejecutar ahora' }}
+            </button>
+          </div>
+        </div>
+
+        @if (imap(); as mail) {
+          <div class="imap-grid">
+            <article class="imap-card">
+              <span>Estado</span>
+              <b>{{ mail.configured ? 'Configurado' : 'Falta configurar' }}</b>
+              <small>{{ mail.mailbox || '-' }} - {{ mail.search_criteria }}</small>
+            </article>
+            <article class="imap-card">
+              <span>Retencion MySQL</span>
+              <b>{{ mail.retention_minutes }} min</b>
+              <small>La busqueda publica solo usa correos recientes.</small>
+            </article>
+            <article class="imap-card">
+              <span>Guardados ahora</span>
+              <b>{{ mail.stored_recent_count }}</b>
+              <small>{{ mail.stored_count }} total antes de limpieza.</small>
+            </article>
+            <article class="imap-card">
+              <span>Ultima lectura</span>
+              <b class="date">{{ mail.last_processed_at ? (mail.last_processed_at | date: 'dd/MM HH:mm:ss') : 'Nunca' }}</b>
+              <small>{{ mail.mark_seen ? 'Marca vistos despues de leer' : 'No marca vistos' }}</small>
+            </article>
+          </div>
+
+          <div class="cron-box">
+            <div>
+              <span>URL cron-job.org</span>
+              <code>{{ mail.cron_url_masked || 'CRON_TOKEN no configurado' }}</code>
+              <small>Clave actual: {{ mail.cron_token_masked || '-' }}</small>
+            </div>
+            <div class="cron-actions">
+              <button class="btn mini primary" type="button" (click)="copyCronUrl()" [disabled]="!mail.cron_url">Copiar URL real</button>
+              <a class="btn mini" href="https://cron-job.org/en/" target="_blank">Abrir cron-job.org</a>
+            </div>
+          </div>
+
+          <form class="imap-settings" (ngSubmit)="saveImapSettings()">
+            <label class="wide">
+              <span>Servidor IMAP</span>
+              <input [ngModel]="imapForm().imap_server" (ngModelChange)="updateImapField('imap_server', $event)" name="imap_server" required />
+            </label>
+            <label>
+              <span>Usuario IMAP</span>
+              <input [ngModel]="imapForm().imap_user" (ngModelChange)="updateImapField('imap_user', $event)" name="imap_user" required />
+            </label>
+            <label>
+              <span>Password IMAP</span>
+              <input type="password" [ngModel]="imapForm().imap_password" (ngModelChange)="updateImapField('imap_password', $event)" name="imap_password" placeholder="Vacio = conservar" />
+            </label>
+            <label>
+              <span>Criterio</span>
+              <input [ngModel]="imapForm().imap_search_criteria" (ngModelChange)="updateImapField('imap_search_criteria', $event)" name="imap_search_criteria" required />
+            </label>
+            <label>
+              <span>Retencion</span>
+              <input type="number" min="1" max="7" [ngModel]="imapForm().emails_max_minutes" (ngModelChange)="updateImapField('emails_max_minutes', +$event)" name="emails_max_minutes" required />
+            </label>
+            <label>
+              <span>Clave Cron</span>
+              <input type="password" [ngModel]="imapForm().cron_token" (ngModelChange)="updateImapField('cron_token', $event)" name="cron_token" placeholder="Vacio = conservar" />
+            </label>
+            <label class="check">
+              <input type="checkbox" [ngModel]="imapForm().imap_mark_seen" (ngModelChange)="updateImapField('imap_mark_seen', $event)" name="imap_mark_seen" />
+              <span>Marcar correos como vistos</span>
+            </label>
+            <button class="btn primary" type="submit" [disabled]="savingImap()">
+              {{ savingImap() ? 'Guardando...' : 'Guardar IMAP / Cron' }}
+            </button>
+          </form>
+
+          @if (imapTestResult(); as test) {
+            <div class="imap-result">
+              <div>
+                <span>Prueba IMAP</span>
+                <b>{{ test.found }} mensaje{{ test.found === 1 ? '' : 's' }}</b>
+                <small>Criterio usado: {{ test.criteria }}</small>
+              </div>
+
+              @if (test.latest.length > 0) {
+                <ul>
+                  @for (item of test.latest; track item.uid) {
+                    <li>
+                      <b>{{ item.subject }}</b>
+                      <span>{{ item.from || '-' }} - {{ item.date ? (item.date | date: 'dd/MM HH:mm:ss') : '-' }}</span>
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+          }
+
+          @if (imapOutput()) {
+            <pre class="imap-output">{{ imapOutput() }}</pre>
+          }
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tipo</th>
+                  <th>Destino</th>
+                  <th>Codigo / link</th>
+                  <th>Asunto</th>
+                  <th>Recibido</th>
+                  <th>Procesado</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of mail.recent_items; track item.id) {
+                  <tr>
+                    <td><span class="tag" [ngClass]="item.tipo === 'link' ? 'ok' : 'warn'">{{ item.tipo }}</span></td>
+                    <td>{{ item.destinatario_original }}</td>
+                    <td class="value-cell">
+                      @if (item.valor_extraido) {
+                        @if (item.tipo === 'link') {
+                          <a [href]="item.valor_extraido" target="_blank" rel="noopener noreferrer">{{ item.valor_extraido }}</a>
+                        } @else {
+                          <b>{{ item.valor_extraido }}</b>
+                        }
+                        <button class="btn mini" type="button" (click)="copyText(item.valor_extraido, 'Codigo o link')">Copiar</button>
+                      } @else {
+                        -
+                      }
+                    </td>
+                    <td>{{ item.asunto }}</td>
+                    <td>{{ item.fecha_recibido ? (item.fecha_recibido | date: 'dd/MM HH:mm:ss') : '-' }}</td>
+                    <td>{{ item.fecha_procesado_db ? (item.fecha_procesado_db | date: 'dd/MM HH:mm:ss') : '-' }}</td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="6" class="empty">Aun no hay correos recientes guardados.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+      }
+
+      @if (activeSection() === 'tutorials') {
+      <section class="section">
+        <div class="section-head">
+          <div>
+            <h2>Tutoriales NetCode</h2>
+            <p>Agrega manualmente texto, imagen o video. El cliente lo vera en Hogar, Code temporal, WhatsApp, Perfil, PIN y codigo de 4 digitos.</p>
+          </div>
+          <a class="btn" href="/netcode/codigos" target="_blank">Ver NetCode</a>
+        </div>
+
+        <div class="tutorial-grid">
+          @for (entry of tutorialEntries(); track entry[0]) {
+            @let key = entry[0];
+            @let tutorial = entry[1];
+            <article class="tutorial-card">
+              <header>
+                <div>
+                  <span>{{ tutorialLabels()[key] || key }}</span>
+                  <h3>{{ tutorial.title || tutorialLabels()[key] || key }}</h3>
+                  <small>{{ tutorial.updated_at ? (tutorial.updated_at | date: 'dd/MM/yyyy HH:mm') : 'Sin cambios' }}</small>
+                </div>
+              </header>
+
+              <label>
+                <span>Titulo</span>
+                <input [ngModel]="tutorialForm()[key]?.title" (ngModelChange)="updateTutorialField(key, 'title', $event)" name="tutorial_title_{{ key }}" maxlength="120" required />
+              </label>
+
+              <label>
+                <span>Pasos, uno por linea</span>
+                <textarea [ngModel]="tutorialForm()[key]?.steps" (ngModelChange)="updateTutorialField(key, 'steps', $event)" name="tutorial_steps_{{ key }}" placeholder="Paso 1&#10;Paso 2&#10;Paso 3"></textarea>
+              </label>
+
+              <label>
+                <span>Imagen o video</span>
+                <input type="file" accept="image/*,video/mp4,video/quicktime,video/webm" (change)="updateTutorialMedia(key, $event)" />
+              </label>
+
+              <div class="tutorial-preview">
+                @if (tutorial.media_url && tutorial.media_type === 'video') {
+                  <video [src]="tutorial.media_url" controls playsinline></video>
+                } @else if (tutorial.media_url && tutorial.media_type === 'image') {
+                  <img [src]="tutorial.media_url" [alt]="tutorial.title" />
+                } @else {
+                  <span>Sin imagen o video cargado.</span>
+                }
+              </div>
+
+              <div class="tutorial-actions">
+                <button class="btn mini primary" type="button" (click)="saveTutorial(key)" [disabled]="savingTutorialKey() === key">
+                  {{ savingTutorialKey() === key ? 'Guardando...' : 'Guardar tutorial' }}
+                </button>
+                <button class="btn mini danger" type="button" (click)="deleteTutorialMedia(key)" [disabled]="!tutorial.media_url">Eliminar archivo</button>
+              </div>
+            </article>
+          }
+        </div>
+      </section>
+      }
+      </section>
+    }
+  </div>
+</main>

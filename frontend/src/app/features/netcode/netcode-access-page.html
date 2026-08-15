@@ -1,0 +1,222 @@
+<main class="page">
+  <section class="panel">
+    <div class="brand">
+      <div class="ring"><span>LG</span></div>
+      <h1>INICIO SESION</h1>
+      <p>CODIGO DE 4 DIGITOS</p>
+      <div class="line"></div>
+    </div>
+
+    @if (viewState() === 'access') {
+      <section class="section">
+        <h2>{{ step() === 'account' ? 'Cuenta validada' : 'Inicio sesion codigo 4 digitos' }}</h2>
+        <p>Valida primero tu WhatsApp, luego tu nombre de perfil y finalmente tu PIN. Maximo 3 intentos por paso.</p>
+
+        <div class="tutorial-media">
+          <svg lucideVideo size="22" />
+          <span>Espacio para imagen o video tutorial de Inicio sesion codigo 4 digitos.</span>
+        </div>
+      </section>
+
+      @if (step() === 'whatsapp') {
+        <div class="stack">
+          <label class="inputbox">
+            <input
+              type="text"
+              autocomplete="off"
+              placeholder="Usuario de acceso directo..."
+              [ngModel]="clientAccess()"
+              (ngModelChange)="clientAccess.set($event)"
+              (keydown.enter)="validate('cliente_acceso')"
+            />
+            <svg lucideKey size="24" />
+          </label>
+          <label class="inputbox">
+            <input
+              type="text"
+              inputmode="numeric"
+              maxlength="4"
+              autocomplete="one-time-code"
+              placeholder="PIN del perfil..."
+              [ngModel]="clientAccessPin()"
+              (ngModelChange)="updateClientAccessPin($event)"
+              (keydown.enter)="validate('cliente_acceso')"
+            />
+            <svg lucideLock size="24" />
+          </label>
+          <button class="ghost" type="button" (click)="validate('cliente_acceso')">Entrar con acceso directo</button>
+          <button class="ghost" type="button" (click)="openTutorial('cliente_acceso')">
+            <svg lucideCirclePlay size="18" />
+            Ver tutorial
+          </button>
+
+          <div class="tries">O valida con WhatsApp si no tienes tu usuario de acceso y PIN.</div>
+
+          <label class="inputbox">
+            <input
+              type="tel"
+              inputmode="tel"
+              autocomplete="tel"
+              placeholder="Ingresa tu WhatsApp..."
+              [ngModel]="whatsapp()"
+              (ngModelChange)="whatsapp.set($event)"
+              (keydown.enter)="validate('whatsapp')"
+            />
+            <svg lucidePhone size="24" />
+          </label>
+          <div class="tries">{{ attemptsLeft('whatsapp') }}</div>
+          <button class="ghost" type="button" (click)="validate('whatsapp')">Validar WhatsApp</button>
+          <button class="ghost" type="button" (click)="openTutorial('whatsapp')">
+            <svg lucideCirclePlay size="18" />
+            Ver tutorial
+          </button>
+        </div>
+      }
+
+      @if (step() === 'nombre') {
+        <div class="stack">
+          @if (profileOptions().length > 1) {
+            <div class="section">
+              <h2>Elige tu perfil</h2>
+              <p>Ese WhatsApp tiene varios Netflix. Selecciona cual quieres usar.</p>
+            </div>
+            @for (option of profileOptions(); track option.nombre + '-' + option.fila_excel) {
+              <button class="ghost" type="button" (click)="selectProfile(option.nombre)">
+                {{ option.nombre || 'Perfil sin nombre' }} · vence {{ option.vence || '-' }}
+              </button>
+            }
+          }
+          <label class="inputbox">
+            <input
+              type="text"
+              autocomplete="off"
+              placeholder="Ingresa el nombre del perfil..."
+              [ngModel]="profileName()"
+              (ngModelChange)="profileName.set($event.toUpperCase())"
+              (keydown.enter)="validate('nombre')"
+            />
+            <svg lucideUser size="24" />
+          </label>
+          <div class="tries">{{ attemptsLeft('nombre') }}</div>
+          <button class="ghost" type="button" (click)="validate('nombre')">Validar nombre</button>
+          <button class="ghost" type="button" (click)="openTutorial('nombre')">
+            <svg lucideCirclePlay size="18" />
+            Ver tutorial
+          </button>
+        </div>
+      }
+
+      @if (step() === 'pin') {
+        <div class="stack">
+          <label class="inputbox">
+            <input
+              type="text"
+              inputmode="numeric"
+              maxlength="4"
+              autocomplete="one-time-code"
+              placeholder="Ingresa tu PIN de 4 digitos..."
+              [ngModel]="pin()"
+              (ngModelChange)="updatePin($event)"
+              (keydown.enter)="validate('pin')"
+            />
+            <svg lucideLock size="24" />
+          </label>
+          <div class="tries">{{ attemptsLeft('pin') }}</div>
+          <button class="ghost" type="button" (click)="validate('pin')">Validar PIN</button>
+          <button class="ghost" type="button" (click)="openTutorial('pin')">
+            <svg lucideCirclePlay size="18" />
+            Ver tutorial
+          </button>
+        </div>
+      }
+
+      @if (step() === 'account' && account(); as validAccount) {
+        <div class="account active">
+          <div class="account-grid">
+            <div class="cred"><span>Correo Netflix</span><b>{{ validAccount.cuenta?.email || '-' }}</b></div>
+            <div class="cred"><span>Contrasena</span><b>{{ validAccount.cuenta?.password || '-' }}</b></div>
+            <div class="cred"><span>Perfil / PIN</span><b>{{ validAccount.perfil?.nombre || '-' }} / {{ validAccount.perfil?.pin || '-' }}</b></div>
+            <div class="cred"><span>Acceso cliente</span><b>{{ validAccount.perfil?.cliente_acceso_usuario || '-' }}</b></div>
+            <div class="cred"><span>WhatsApp</span><b>{{ validAccount.perfil?.numero || '-' }}</b></div>
+            <div class="cred"><span>Vendedor</span><b>{{ validAccount.perfil?.vendedor || '-' }}</b></div>
+            <div class="cred"><span>Costo</span><b>{{ validAccount.perfil?.costo ? 'S/ ' + validAccount.perfil?.costo : '-' }}</b></div>
+            <div class="cred"><span>Inicio</span><b>{{ validAccount.perfil?.fecha_inicio || '-' }}</b></div>
+            <div class="cred"><span>Vence</span><b>{{ validAccount.perfil?.vence || validAccount.perfil?.fecha_fin || '-' }}</b></div>
+            <div class="cred"><span>Estado</span><b>{{ validAccount.perfil?.estado || (validAccount.perfil?.ocupado ? 'Activo' : 'Libre') }}</b></div>
+            <div class="cred"><span>Excel</span><b>{{ validAccount.perfil?.hoja_excel || '-' }} #{{ validAccount.perfil?.fila_excel || '-' }}</b></div>
+          </div>
+
+          <button class="bigbtn access" type="button" (click)="startAccessCodeSearch()">
+            <svg lucideKey size="28" />
+            <span>Buscar codigo<br />de 4 digitos</span>
+          </button>
+          <button class="ghost" type="button" (click)="openTutorial('acceso4')">Ver tutorial</button>
+        </div>
+      }
+
+      <a class="ghost link" href="/">
+        <svg lucideArrowLeft size="17" />
+        Volver al menu
+      </a>
+    }
+
+    @if (viewState() === 'scan') {
+      <section class="scan active">
+        <div class="timer">{{ timeLeft() }}</div>
+        <p>{{ scanStatus() }}</p>
+        <div class="scan-actions">
+          <button class="ghost" type="button" (click)="resetResult()">Cambiar correo/cuenta</button>
+          <button class="danger-btn" type="button" (click)="cancelSearch()">Cancelar busqueda</button>
+        </div>
+      </section>
+    }
+
+    @if (viewState() === 'result') {
+      <section class="result active">
+        <div class="result-value" [class.code]="!resultIsLink()" [class.link]="resultIsLink()">{{ resultValue() }}</div>
+        <p>{{ resultIsLink() ? 'Abre el enlace cuanto antes.' : 'Copia el codigo y usalo antes de que venza.' }}</p>
+        <div class="scan-actions">
+          <button class="ghost" type="button" (click)="copyOrOpen()">
+            @if (resultIsLink()) {
+              <svg lucideExternalLink size="17" />
+              Abrir enlace
+            } @else {
+              <svg lucideCopy size="17" />
+              Copiar codigo
+            }
+          </button>
+          <button class="ghost" type="button" (click)="resetResult()">
+            <svg lucideRefreshCcw size="17" />
+            Nueva busqueda
+          </button>
+        </div>
+      </section>
+    }
+  </section>
+</main>
+
+@if (tutorialOpen(); as tutorial) {
+  <div class="modal-backdrop" (click)="closeTutorial()"></div>
+  <section class="tutorial-modal" role="dialog" aria-modal="true">
+    <h2>{{ tutorial.title }}</h2>
+    <ol>
+      @for (stepItem of tutorial.steps; track stepItem; let i = $index) {
+        <li><b>{{ i + 1 }}.</b> {{ stepItem }}</li>
+      }
+    </ol>
+
+    @if (tutorial.media_url && tutorial.media_type === 'video') {
+      <video [src]="tutorial.media_url" controls playsinline></video>
+    } @else if (tutorial.media_url && tutorial.media_type === 'image') {
+      <img [src]="tutorial.media_url" [alt]="tutorial.title" />
+    } @else {
+      <div class="empty-media">Imagen/video: Aqui puedes poner imagen o video del flujo.</div>
+    }
+
+    <button class="ghost" type="button" (click)="closeTutorial()">Cerrar</button>
+  </section>
+}
+
+@if (toast()) {
+  <div class="toast">{{ toast() }}</div>
+}

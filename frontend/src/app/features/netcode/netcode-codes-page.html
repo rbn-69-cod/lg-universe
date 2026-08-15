@@ -1,0 +1,128 @@
+<main class="page">
+  <section class="panel">
+    <div class="brand">
+      <div class="ring"><span>LG</span></div>
+      <h1>NETCODE</h1>
+      <p>HOGAR Y CODE TEMPORAL</p>
+      <div class="line"></div>
+    </div>
+
+    @if (state() === 'form') {
+      <div class="stack">
+        <section class="section">
+          <h2>{{ modeTitle() }}</h2>
+          <p>{{ modeText() }}</p>
+        </section>
+
+        <label class="inputbox">
+          <input
+            type="email"
+            inputmode="email"
+            autocomplete="email"
+            placeholder="Ingresa el correo de Netflix..."
+            [ngModel]="email()"
+            (ngModelChange)="email.set($event)"
+            (keydown.enter)="selectedMode() ? start(selectedMode()!) : null"
+          />
+          <svg lucideMail size="24" />
+        </label>
+
+        <a class="ghost link" href="/netcode/inicio-sesion">
+          No recuerdo mi correo
+        </a>
+
+        <div class="mode-list">
+          <button class="bigbtn home" type="button" [class.selected]="selectedMode() === 'hogar'" (click)="selectMode('hogar'); start('hogar')">
+            <svg lucideHome size="28" />
+            <span>Code hogar<br /><small>Actualizar hogar Netflix</small></span>
+          </button>
+
+          <button class="bigbtn temp" type="button" [class.selected]="selectedMode() === 'temporal'" (click)="selectMode('temporal'); start('temporal')">
+            <svg lucideKey size="28" />
+            <span>Code temporal<br /><small>Codigo o enlace temporal</small></span>
+          </button>
+        </div>
+
+        <div class="actions">
+          <button class="ghost" type="button" (click)="openTutorial('hogar')">
+            <svg lucideCirclePlay size="18" />
+            Tutorial hogar
+          </button>
+          <button class="ghost" type="button" (click)="openTutorial('temporal')">
+            <svg lucideCirclePlay size="18" />
+            Tutorial temporal
+          </button>
+        </div>
+
+        <div class="tutorial-media">
+          <svg lucideImage size="22" />
+          <span>Espacio para imagen o video tutorial de Code hogar y Code temporal.</span>
+        </div>
+
+        <a class="ghost link" href="/">
+          <svg lucideArrowLeft size="17" />
+          Volver al menu
+        </a>
+      </div>
+    }
+
+    @if (state() === 'scan') {
+      <section class="scan active">
+        <div class="timer">{{ timeLeft() }}</div>
+        <p>{{ scanStatus() }}</p>
+        <div class="scan-actions">
+          <button class="ghost" type="button" (click)="changeSearchData()">Cambiar correo/cuenta</button>
+          <button class="danger-btn" type="button" (click)="cancelSearch()">Cancelar busqueda</button>
+        </div>
+      </section>
+    }
+
+    @if (state() === 'result') {
+      <section class="result active">
+        <div class="result-value" [class.code]="!resultIsLink()" [class.link]="resultIsLink()">{{ resultValue() }}</div>
+        <p>{{ resultIsLink() ? 'Abre el enlace cuanto antes.' : 'Copia el codigo y usalo antes de que venza.' }}</p>
+        <div class="scan-actions">
+          <button class="ghost" type="button" (click)="copyOrOpen()">
+            @if (resultIsLink()) {
+              <svg lucideExternalLink size="17" />
+              Abrir enlace
+            } @else {
+              <svg lucideCopy size="17" />
+              Copiar codigo
+            }
+          </button>
+          <button class="ghost" type="button" (click)="reset()">
+            <svg lucideRefreshCcw size="17" />
+            Nueva busqueda
+          </button>
+        </div>
+      </section>
+    }
+  </section>
+</main>
+
+@if (tutorialOpen(); as tutorial) {
+  <div class="modal-backdrop" (click)="closeTutorial()"></div>
+  <section class="tutorial-modal" role="dialog" aria-modal="true">
+    <h2>{{ tutorial.title }}</h2>
+    <ol>
+      @for (step of tutorial.steps; track step; let i = $index) {
+        <li><b>{{ i + 1 }}.</b> {{ step }}</li>
+      }
+    </ol>
+
+    @if (tutorial.media_url && tutorial.media_type === 'video') {
+      <video [src]="tutorial.media_url" controls playsinline></video>
+    } @else if (tutorial.media_url && tutorial.media_type === 'image') {
+      <img [src]="tutorial.media_url" [alt]="tutorial.title" />
+    } @else {
+      <div class="empty-media">Imagen/video: Aqui puedes poner una imagen o video general del flujo.</div>
+    }
+
+    <button class="ghost" type="button" (click)="closeTutorial()">Cerrar</button>
+  </section>
+}
+
+@if (toast()) {
+  <div class="toast">{{ toast() }}</div>
+}

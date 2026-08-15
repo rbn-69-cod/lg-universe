@@ -1,0 +1,136 @@
+<main class="payment-page">
+  <div class="stars"></div>
+  <div class="scanlines"></div>
+
+  <header class="header">
+    <div class="header-inner">
+      <div class="brand">
+        <span class="brand-mark"></span>
+        <div>
+          <strong>IG UNIVERSE</strong>
+          <small>{{ seller().supportText }}</small>
+        </div>
+      </div>
+
+      <a class="back-btn" href="/plataformas">
+        <svg lucideArrowLeft size="17" />
+        VOLVER
+      </a>
+    </div>
+  </header>
+
+  <section class="wrap">
+    <div class="layout">
+      <section class="panel summary-panel">
+        <div class="panel-title">
+          <h1><svg lucideReceipt size="18" /> Resumen de compra</h1>
+          <span class="status"><svg lucideBadgeCheck size="14" /> PENDIENTE</span>
+        </div>
+
+        <div class="list">
+          @for (item of cart(); track item.id) {
+            <article class="line">
+              <div class="line-top">
+                <div>
+                  <strong>{{ item.name }}</strong>
+                  <small>Cantidad: {{ item.quantity }} - Precio: {{ money(item.price) }}</small>
+                </div>
+                <b>{{ money(lineTotal(item)) }}</b>
+              </div>
+              <div class="line-total">
+                <span><svg lucideShoppingBag size="14" /> x{{ item.quantity }}</span>
+                <strong>{{ money(lineTotal(item)) }}</strong>
+              </div>
+            </article>
+          } @empty {
+            <div class="empty">
+              <svg lucideShoppingBag size="44" />
+              <strong>NO HAY ITEMS PARA PAGAR</strong>
+              <span>Tu carrito esta vacio. Vuelve al catalogo y agrega plataformas.</span>
+              <a class="back-btn inline" href="/plataformas">
+                <svg lucideArrowLeft size="16" />
+                IR AL CATALOGO
+              </a>
+            </div>
+          }
+        </div>
+
+        <div class="totals">
+          <div><span>SUBTOTAL</span><b>{{ money(subtotal()) }}</b></div>
+          <div><span>ITEMS</span><b>{{ itemCount() }}</b></div>
+          <div class="final"><span>TOTAL A PAGAR</span><b>{{ money(subtotal()) }}</b></div>
+        </div>
+      </section>
+
+      <section class="panel methods-panel">
+        <div class="panel-title">
+          <h2><svg lucideQrCode size="18" /> Metodos de pago</h2>
+          <span class="status"><svg lucideShield size="14" /> SEGURO</span>
+        </div>
+
+        <div class="method-grid">
+          @for (method of methods(); track method.id) {
+            <article class="method">
+              <header>
+                <div class="method-left">
+                  <span class="icon-box">WA</span>
+                  <div>
+                    <strong>{{ method.title }}</strong>
+                    <small>{{ method.subtitle }}</small>
+                  </div>
+                </div>
+                <span class="badge" [class.good]="method.recommended">
+                  @if (method.recommended) {
+                    <svg lucideBolt size="13" />
+                    {{ method.badge }}
+                  }
+                </span>
+              </header>
+
+              <div class="method-body">
+                <div class="qr">
+                  <span class="scan"></span>
+                  <img [src]="method.qrSrc" [alt]="'QR ' + method.title + ' ' + method.subtitle" (error)="qrFallback($event, method)" />
+                </div>
+
+                <div>
+                  <div class="info">
+                    <div><span>Titular</span><b>{{ method.accountName }}</b></div>
+                    <div><span>Numero</span><b>{{ method.accountPhone }}</b></div>
+                    <div><span>Monto</span><b>{{ money(subtotal()) }}</b></div>
+                  </div>
+
+                  <div class="phone-box">
+                    <strong>{{ method.copyPhone }}</strong>
+                    <button type="button" (click)="copyPhone(method.copyPhone)">
+                      <svg lucideCopy size="15" />
+                      COPIAR
+                    </button>
+                  </div>
+
+                  <div class="actions">
+                    <button class="whatsapp" type="button" (click)="sendReceipt(method)">
+                      WA ENVIAR COMPROBANTE
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </article>
+          }
+
+            <article class="instructions">
+            <div>
+              <strong><svg lucideInfo size="15" /> Instrucciones</strong>
+              <p>{{ instructions() }}</p>
+            </div>
+            <b>VIP</b>
+          </article>
+        </div>
+      </section>
+    </div>
+  </section>
+</main>
+
+@if (toast()) {
+  <div class="toast"><svg lucideBolt size="15" /> {{ toast() }}</div>
+}

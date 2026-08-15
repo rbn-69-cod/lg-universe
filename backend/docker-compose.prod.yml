@@ -1,0 +1,30 @@
+services:
+  nginx:
+    ports: !override
+      - "80:80"
+    restart: unless-stopped
+
+  backend:
+    build:
+      args:
+        INSTALL_DEV: "false"
+    restart: unless-stopped
+    volumes:
+      - app_storage:/var/www/html/storage
+
+  worker:
+    build:
+      args:
+        INSTALL_DEV: "false"
+    restart: unless-stopped
+    volumes:
+      - app_storage:/var/www/html/storage
+
+  mysql:
+    restart: unless-stopped
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  app_storage:
+  mysql_data:

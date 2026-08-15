@@ -1,0 +1,465 @@
+:host {
+  display: block;
+  min-height: 100dvh;
+  color: #fff;
+  font-family: "Exo 2", Inter, system-ui, sans-serif;
+  background:
+    radial-gradient(900px 620px at 14% 10%, rgba(255, 50, 60, 0.2), transparent 55%),
+    radial-gradient(760px 540px at 85% 70%, rgba(0, 180, 255, 0.24), transparent 55%),
+    #070814;
+}
+
+button,
+a {
+  font: inherit;
+}
+
+.payment-page {
+  min-height: 100dvh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+.stars,
+.scanlines {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.stars {
+  background:
+    radial-gradient(1px 1px at 15% 20%, rgba(255, 255, 255, 0.7), transparent 40%),
+    radial-gradient(1px 1px at 60% 35%, rgba(255, 255, 255, 0.55), transparent 40%),
+    radial-gradient(1px 1px at 78% 80%, rgba(255, 255, 255, 0.5), transparent 40%);
+  opacity: 0.55;
+}
+
+.scanlines {
+  z-index: 1;
+  background: linear-gradient(to bottom, transparent 50%, rgba(34, 230, 255, 0.05) 50%);
+  background-size: 100% 4px;
+  opacity: 0.18;
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 16px 14px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(180deg, rgba(7, 8, 20, 0.92), rgba(7, 8, 20, 0.55));
+  backdrop-filter: blur(12px);
+}
+
+.header-inner,
+.wrap {
+  width: min(1100px, 94vw);
+  margin: 0 auto;
+  position: relative;
+  z-index: 2;
+}
+
+.header-inner,
+.brand,
+.back-btn,
+.panel-title,
+.method header,
+.method-left,
+.status,
+.line-total,
+.phone-box,
+.instructions,
+.toast {
+  display: flex;
+  align-items: center;
+}
+
+.header-inner,
+.panel-title,
+.method header,
+.line-total,
+.phone-box,
+.instructions {
+  justify-content: space-between;
+}
+
+.brand {
+  gap: 12px;
+  min-width: 0;
+}
+
+.brand-mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(135deg, rgba(255, 43, 214, 0.25), rgba(34, 230, 255, 0.18));
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+}
+
+.brand strong,
+.panel-title h1,
+.panel-title h2,
+.method strong,
+.line strong,
+.totals b,
+.line-top b,
+.phone-box strong {
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.brand small,
+.line small,
+.info span,
+.instructions p,
+.empty span {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.back-btn {
+  gap: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 10px 12px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.16);
+  text-decoration: none;
+  font-weight: 900;
+  font-size: 12px;
+}
+
+.back-btn.inline {
+  width: fit-content;
+  margin: 14px auto 0;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 16px;
+  margin-top: 18px;
+  align-items: start;
+}
+
+.panel {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 30px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.16);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55), 0 0 40px rgba(255, 43, 214, 0.14);
+  backdrop-filter: blur(12px);
+}
+
+.panel-title {
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.panel-title h1,
+.panel-title h2 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.status,
+.badge {
+  gap: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: rgba(0, 0, 0, 0.18);
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.list {
+  max-height: 52vh;
+  overflow: auto;
+  padding: 14px 16px;
+}
+
+.line,
+.instructions {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  padding: 12px;
+  margin-bottom: 10px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.line-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.line small {
+  display: block;
+  margin-top: 6px;
+}
+
+.line-top b {
+  color: rgba(34, 230, 255, 0.95);
+  white-space: nowrap;
+}
+
+.line-total {
+  margin-top: 10px;
+}
+
+.line-total span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(34, 230, 255, 0.28);
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: rgba(34, 230, 255, 0.95);
+  background: rgba(34, 230, 255, 0.08);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.totals {
+  padding: 14px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.totals div {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.totals .final {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.18);
+}
+
+.method-grid {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px 16px;
+}
+
+.method {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 22px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.method header {
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.method-left {
+  gap: 12px;
+}
+
+.icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: #061018;
+  background: linear-gradient(135deg, rgba(0, 255, 157, 0.95), rgba(34, 230, 255, 0.75));
+  font-weight: 900;
+}
+
+.method small {
+  display: block;
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.badge.good {
+  color: rgba(0, 255, 157, 0.95);
+  border-color: rgba(0, 255, 157, 0.28);
+  background: rgba(0, 255, 157, 0.08);
+}
+
+.method-body {
+  display: grid;
+  grid-template-columns: 210px 1fr;
+  gap: 14px;
+  align-items: center;
+  padding: 14px;
+}
+
+.qr {
+  width: 210px;
+  height: 210px;
+  margin: 0 auto;
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  padding: 10px;
+  background: #fff;
+}
+
+.qr img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.scan {
+  position: absolute;
+  left: 0;
+  top: -2px;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, rgba(0, 255, 157, 0.95), transparent);
+}
+
+.info {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.info div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.info div:last-child {
+  border-bottom: 0;
+}
+
+.info b {
+  text-align: right;
+}
+
+.phone-box {
+  gap: 10px;
+  margin-top: 10px;
+  border: 1px solid rgba(34, 230, 255, 0.22);
+  border-radius: 999px;
+  padding: 10px 12px;
+  background: rgba(34, 230, 255, 0.08);
+}
+
+.phone-box strong {
+  color: rgba(0, 255, 157, 0.95);
+}
+
+.phone-box button,
+.whatsapp {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 12px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  font-weight: 900;
+  font-size: 11px;
+}
+
+.actions {
+  margin-top: 10px;
+}
+
+.whatsapp {
+  width: 100%;
+  color: #061018;
+  border: 0;
+  background: linear-gradient(135deg, rgba(0, 255, 157, 0.95), rgba(34, 230, 255, 0.6));
+}
+
+.instructions {
+  gap: 10px;
+}
+
+.instructions strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.instructions p {
+  margin: 8px 0 0;
+  line-height: 1.45;
+}
+
+.instructions b {
+  color: rgba(34, 230, 255, 0.95);
+}
+
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 24px 16px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.empty svg {
+  color: rgba(34, 230, 255, 0.95);
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  z-index: 50;
+  gap: 10px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: rgba(8, 9, 22, 0.88);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+}
+
+@media (max-width: 980px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .header-inner {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .back-btn {
+    justify-content: center;
+  }
+
+  .method-body {
+    grid-template-columns: 1fr;
+  }
+
+  .phone-box {
+    align-items: stretch;
+    flex-direction: column;
+    border-radius: 18px;
+  }
+}

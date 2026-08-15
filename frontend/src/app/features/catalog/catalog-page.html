@@ -1,0 +1,158 @@
+<main class="catalog-shell">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark"><svg lucideTv size="25" /></span>
+      <div>
+        <strong>IG UNIVERSE</strong>
+        <span>Catalogo Premium</span>
+      </div>
+    </div>
+
+    <button class="cart-pill" type="button" (click)="isCartOpen.set(true)">
+      <svg lucideShoppingCart size="18" />
+      CARRITO
+      <b>{{ cart.itemCount() }}</b>
+    </button>
+  </header>
+
+  <section class="toolbar" aria-label="Busqueda del catalogo">
+    <label class="search-box">
+      <svg lucideSearch size="18" />
+      <input
+        type="search"
+        [ngModel]="searchTerm()"
+        (ngModelChange)="searchTerm.set($event)"
+        placeholder="Buscar servicio..."
+        autocomplete="off"
+      />
+    </label>
+
+    <div class="counter">
+      <span>{{ visiblePlatforms().length }}</span>
+      plataformas
+    </div>
+  </section>
+
+  @if (loading()) {
+    <section class="state">Cargando catalogo...</section>
+  } @else if (error()) {
+    <section class="state error">{{ error() }}</section>
+  } @else if (visiblePlatforms().length === 0) {
+    <section class="state">No hay plataformas cargadas aun.</section>
+  } @else {
+    <section class="grid" aria-label="Plataformas disponibles">
+      @for (platform of visiblePlatforms(); track platform.id) {
+        <article class="product-card">
+          <div class="card-head">
+            <div class="image-box">
+              @if (platform.imagen) {
+                <img [src]="platform.imagen" [alt]="platform.nombre" (error)="imageFallback($event)" />
+              }
+              <svg class="fallback-icon" lucideFilm size="42" />
+            </div>
+
+            <div class="product-title">
+              <h2>{{ platform.nombre }}</h2>
+              <span><svg lucideCrown size="14" /> PREMIUM ACCESS</span>
+            </div>
+
+            <div class="price">
+              S/ {{ platform.precio | number: '1.2-2' }}
+              <small>/mes</small>
+            </div>
+          </div>
+
+          @if (platform.descripcion) {
+            <p class="description">{{ platform.descripcion }}</p>
+          }
+
+          <div class="features">
+            @for (feature of platform.features; track feature) {
+              <span><svg lucideBolt size="14" /> {{ feature }}</span>
+            } @empty {
+              <span><svg lucideBolt size="14" /> Streaming 4K Ultra HD</span>
+              <span><svg lucideBolt size="14" /> Catalogo ilimitado</span>
+              <span><svg lucideBolt size="14" /> 3 dispositivos simultaneos</span>
+            }
+          </div>
+
+          <div class="product-info">
+            <details>
+              <summary>Como se activa</summary>
+              <p>{{ platform.activacion || 'Despues del pago se coordina la entrega del acceso.' }}</p>
+            </details>
+            <details>
+              <summary>Terminos</summary>
+              <p>{{ platform.terminos || 'Uso personal. No modificar datos ni compartir el acceso.' }}</p>
+            </details>
+          </div>
+
+          <div class="actions">
+            <button class="primary" type="button" (click)="addToCart(platform)">
+              <svg lucideShoppingCart size="16" />
+              AGREGAR
+            </button>
+            <button type="button" (click)="buyNow(platform)">
+              <svg lucideBolt size="16" />
+              PAGAR AHORA
+            </button>
+          </div>
+        </article>
+      }
+    </section>
+  }
+
+  <button class="floating-cart" type="button" (click)="isCartOpen.set(true)">
+    <svg lucideShoppingCart size="20" />
+    CARRITO
+    <b>{{ cart.itemCount() }}</b>
+  </button>
+</main>
+
+<div class="overlay" [class.open]="isCartOpen()" (click)="isCartOpen.set(false)"></div>
+
+<aside class="cart-panel" [class.open]="isCartOpen()" aria-label="Tu pedido">
+  <div class="cart-head">
+    <h2>Tu pedido</h2>
+    <button type="button" aria-label="Cerrar carrito" (click)="isCartOpen.set(false)">
+      <svg lucideX size="20" />
+    </button>
+  </div>
+
+  <div class="cart-list">
+    @for (item of cart.items(); track item.id; let i = $index) {
+      <article class="cart-item">
+        <div>
+          <strong>{{ item.name }}</strong>
+          <span>S/ {{ item.price * item.quantity | number: '1.2-2' }}</span>
+        </div>
+        <div class="qty-row">
+          <button type="button" aria-label="Reducir cantidad" (click)="cart.decrement(i)">
+            <svg lucideMinus size="16" />
+          </button>
+          <b>{{ item.quantity }}</b>
+          <button type="button" aria-label="Aumentar cantidad" (click)="cart.increment(i)">
+            <svg lucidePlus size="16" />
+          </button>
+          <button class="remove" type="button" aria-label="Eliminar item" (click)="cart.remove(i)">
+            <svg lucideTrash2 size="16" />
+            Eliminar
+          </button>
+        </div>
+      </article>
+    } @empty {
+      <div class="empty-cart">El carrito esta vacio</div>
+    }
+  </div>
+
+  <footer class="cart-footer">
+    <div><span>SUBTOTAL</span><b>S/ {{ cart.subtotal() | number: '1.2-2' }}</b></div>
+    <div><span>TOTAL</span><b>S/ {{ cart.subtotal() | number: '1.2-2' }}</b></div>
+    <button class="checkout" type="button" (click)="checkout()">CONTINUAR A PAGO</button>
+    <small>Seguro. Envio automatico a WhatsApp.</small>
+  </footer>
+</aside>
+
+@if (toast()) {
+  <div class="toast">{{ toast() }}</div>
+}
