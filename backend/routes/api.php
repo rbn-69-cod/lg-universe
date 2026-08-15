@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Controllers\Api\V1\PlataformaCatalogController;
 use App\Http\Controllers\Api\V1\PaymentSettingsController;
+use App\Http\Controllers\Api\V1\PlataformaCatalogController;
 use App\Http\Controllers\ApiBuscarEmailController;
 use App\Http\Controllers\ApiNetflixProfileController;
 use App\Support\TutorialContent;

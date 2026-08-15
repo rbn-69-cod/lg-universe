@@ -17,11 +17,19 @@ development -> staging -> main -> VM Starlight -> Docker -> Produccion
 docker compose -f docker-compose.yml -f docker-compose.prod.yml build
 ```
 
+Este build genera:
+
+- imagen `lg-nginx` con Angular compilado y configuracion Nginx de produccion;
+- imagen `lg-backend` para Laravel PHP-FPM;
+- imagen `lg-worker` para colas, IMAP y tareas asincronas.
+
 5. Levantar servicios:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
+
+La entrada publica es Nginx en puerto `80`. Angular es el frontend principal y Laravel queda detras de Nginx para API, autenticacion, media privada, cron y endpoints backend.
 
 6. Ejecutar migraciones solo tras backup:
 

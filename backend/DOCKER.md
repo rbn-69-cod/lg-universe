@@ -2,7 +2,7 @@
 
 ## Servicios
 
-- `nginx`: entrada HTTP publica.
+- `nginx`: entrada HTTP publica. En produccion compila Angular y sirve la SPA.
 - `backend`: Laravel PHP-FPM.
 - `worker`: `php artisan queue:work`.
 - `mysql`: MySQL 8.4 interno, sin puerto publico.
@@ -52,6 +52,17 @@ En la VM, usar:
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
+
+En produccion:
+
+- Angular se compila dentro de `docker/nginx/Dockerfile`.
+- Nginx sirve `frontend/dist/frontend/browser` como frontend principal.
+- Nginx envia `/api/*`, `/login`, `/logout`, `/livewire`, `/cron`, `/payment-media`, `/tutorial-media` y rutas backend necesarias a Laravel PHP-FPM.
+- Las rutas Angular usan fallback a `index.html`.
+- MySQL no publica puertos externos.
+- `mysql_data` persiste MySQL.
+- `app_storage` persiste `storage` para backend y worker.
+- `APP_ENV=production` y `APP_DEBUG=false` se fuerzan desde `docker-compose.prod.yml`.
 
 No ejecutes migraciones destructivas automaticamente. Primero backup, luego `php artisan migrate`, luego verificacion.
 

@@ -77,7 +77,7 @@ class ExcelWorkbookLoader
             throw new RuntimeException('URL de Google Sheets invalida.');
         }
 
-        $spreadsheet = new Spreadsheet();
+        $spreadsheet = new Spreadsheet;
         $spreadsheet->removeSheetByIndex(0);
 
         foreach ($sheetNames as $sheetName) {

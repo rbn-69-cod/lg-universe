@@ -8,8 +8,8 @@ use App\Models\ExcelImportRange;
 use App\Models\Perfil;
 use App\Models\Plataforma;
 use App\Models\User;
-use App\Support\TutorialContent;
 use App\Support\PaymentSettings;
+use App\Support\TutorialContent;
 use Illuminate\Support\Facades\Crypt;
 
 class DashboardData
