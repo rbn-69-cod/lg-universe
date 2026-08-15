@@ -2,11 +2,15 @@ FROM node:22-alpine AS frontend-build
 
 WORKDIR /app/frontend
 
+ARG ANGULAR_NODE_OPTIONS="--max-old-space-size=1536"
+ENV NODE_OPTIONS="${ANGULAR_NODE_OPTIONS}" \
+    NG_BUILD_MAX_WORKERS=1
+
 COPY frontend/package*.json ./
 RUN npm ci
 
 COPY frontend/ ./
-RUN npm run build
+RUN npm run build -- --configuration production --progress=false
 
 FROM php:8.3-cli-bookworm AS backend-vendor
 

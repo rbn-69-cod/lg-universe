@@ -56,13 +56,21 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 En produccion:
 
 - Angular se compila dentro de `docker/nginx/Dockerfile`.
+- El build de Angular usa `NODE_OPTIONS=--max-old-space-size=1536` y `NG_BUILD_MAX_WORKERS=1` para funcionar en VM pequenas.
 - Nginx sirve `frontend/dist/frontend/browser` como frontend principal.
 - Nginx envia `/api/*`, `/login`, `/logout`, `/livewire`, `/cron`, `/payment-media`, `/tutorial-media` y rutas backend necesarias a Laravel PHP-FPM.
 - Las rutas Angular usan fallback a `index.html`.
+- `backend` y `worker` reutilizan la misma imagen `lg-backend`; no se compilan dos veces en produccion.
 - MySQL no publica puertos externos.
 - `mysql_data` persiste MySQL.
 - `app_storage` persiste `storage` para backend y worker.
 - `APP_ENV=production` y `APP_DEBUG=false` se fuerzan desde `docker-compose.prod.yml`.
+
+En VM pequenas, construir con un solo job de Compose evita presion de memoria:
+
+```bash
+COMPOSE_PARALLEL_LIMIT=1 docker compose -f docker-compose.yml -f docker-compose.prod.yml build
+```
 
 No ejecutes migraciones destructivas automaticamente. Primero backup, luego `php artisan migrate`, luego verificacion.
 

@@ -14,14 +14,14 @@ development -> staging -> main -> VM Starlight -> Docker -> Produccion
 4. Ejecutar build:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml build
+COMPOSE_PARALLEL_LIMIT=1 docker compose -f docker-compose.yml -f docker-compose.prod.yml build
 ```
 
 Este build genera:
 
 - imagen `lg-nginx` con Angular compilado y configuracion Nginx de produccion;
 - imagen `lg-backend` para Laravel PHP-FPM;
-- imagen `lg-worker` para colas, IMAP y tareas asincronas.
+- worker reutilizando `lg-backend` para colas, IMAP y tareas asincronas.
 
 5. Levantar servicios:
 
