@@ -19,6 +19,7 @@ import {
   NetflixProfileValidationResponse,
   Tutorial,
 } from './netcode-api';
+import { LgMonogramLogo } from '../../shared/lg-monogram-logo';
 import Swal from 'sweetalert2';
 
 type AccessStep = 'whatsapp' | 'nombre' | 'pin' | 'account';
@@ -42,6 +43,7 @@ const MAX_SEARCH_ATTEMPTS = 2;
     LucideRefreshCcw,
     LucideUser,
     LucideVideo,
+    LgMonogramLogo,
   ],
   templateUrl: './netcode-access-page.html',
   styleUrl: './netcode-codes-page.css',

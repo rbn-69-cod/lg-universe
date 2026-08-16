@@ -13,6 +13,7 @@ import {
 } from '@lucide/angular';
 
 import { NetcodeApi, NetcodeSearchSubject, Tutorial } from './netcode-api';
+import { LgMonogramLogo } from '../../shared/lg-monogram-logo';
 
 type Mode = 'hogar' | 'temporal';
 type ViewState = 'form' | 'scan' | 'result';
@@ -33,6 +34,7 @@ const POLL_MS = 4000;
     LucideKey,
     LucideMail,
     LucideRefreshCcw,
+    LgMonogramLogo,
   ],
   templateUrl: './netcode-codes-page.html',
   styleUrl: './netcode-codes-page.css',

@@ -64,28 +64,8 @@ input {
   text-align: center;
 }
 
-.ring {
-  width: 102px;
-  height: 102px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-weight: 900;
-  font-size: 32px;
-  background:
-    radial-gradient(circle, rgba(8, 231, 255, 0.28), transparent 58%),
-    conic-gradient(#08e7ff, #ff197b, #ffd400, transparent 72%);
-  box-shadow: 0 0 32px rgba(8, 231, 255, 0.26);
-}
-
-.ring span {
-  width: 74px;
-  height: 74px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: #111429;
+app-lg-monogram-logo {
+  --lg-logo-size: 102px;
 }
 
 .brand h1 {
@@ -513,14 +493,8 @@ input {
     padding: 22px 14px;
   }
 
-  .ring {
-    width: 84px;
-    height: 84px;
-  }
-
-  .ring span {
-    width: 62px;
-    height: 62px;
+  app-lg-monogram-logo {
+    --lg-logo-size: 84px;
   }
 
   .brand {
