@@ -58,7 +58,8 @@ class ProcesarEmailsPedidos extends Command
         $searchCriteria = trim((string) config('imap.search_criteria', 'UNSEEN')) ?: 'UNSEEN';
         $dbTabla = (string) config('imap.processed_table');
 
-        $this->limpiarCorreosAntiguos($dbTabla);
+        $deletedRows = $this->cleanupExpiredEmails($dbTabla);
+        $this->log("Cleanup emails_pedidos: {$deletedRows} fila(s) expiradas eliminadas.");
 
         $this->log('IMAP host: '.($imapHost !== '' ? $imapHost : 'NO CONFIGURADO'));
         $this->log('IMAP port: '.$imapPort);
@@ -109,24 +110,26 @@ class ProcesarEmailsPedidos extends Command
         $this->log('Fin del proceso.');
     }
 
-    private function limpiarCorreosAntiguos(string $dbTabla): void
+    public function cleanupExpiredEmails(string $dbTabla): int
     {
         try {
             $minutos = min(7, max(1, (int) config('imap.retention_minutes')));
             $cutoff = now()->subMinutes($minutos);
 
-            DB::table($dbTabla)
+            return DB::table($dbTabla)
                 ->where(function ($query) use ($cutoff) {
                     $query->whereNotNull('fecha_procesado_db')
-                        ->where('fecha_procesado_db', '<', $cutoff);
+                        ->where('fecha_procesado_db', '<=', $cutoff);
                 })
                 ->orWhere(function ($query) use ($cutoff) {
                     $query->whereNull('fecha_procesado_db')
-                        ->where('fecha_recibido', '<', $cutoff);
+                        ->where('fecha_recibido', '<=', $cutoff);
                 })
                 ->delete();
         } catch (\Throwable $e) {
             $this->log('Error limpieza: '.$e->getMessage());
+
+            return 0;
         }
     }
 

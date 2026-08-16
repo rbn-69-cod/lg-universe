@@ -586,12 +586,13 @@ export class NetcodeAccessPage implements OnDestroy {
     const title = type === 'link' ? 'LINK ENCONTRADO' : type === 'login' ? 'LOGIN ENCONTRADO' : 'CODIGO ENCONTRADO';
     const confirmButtonText = type === 'link' ? 'Abrir link' : type === 'login' ? 'Copiar login' : 'Copiar codigo';
     const showDenyButton = type === 'link';
+    const resultLabel = type === 'link' ? 'El link ya esta visible en pantalla.' : type === 'login' ? 'El login ya esta visible en pantalla.' : 'El codigo ya esta visible en pantalla.';
 
     const response = await Swal.fire({
       title,
       html: `
-        <div style="font-size:${type === 'codigo' ? '44px' : '18px'};font-weight:900;letter-spacing:${type === 'codigo' ? '.18em' : '0'};color:#35f7a4;word-break:break-word">
-          ${this.escapeHtml(value)}
+        <div style="font-size:16px;font-weight:700;color:#35f7a4;word-break:break-word">
+          ${this.escapeHtml(resultLabel)}
         </div>
         <div style="margin-top:12px;color:#ffd166;font-weight:900">Vigente por <span id="swal-code-timer">${this.formatSeconds(modalSeconds)}</span></div>
         <div style="margin-top:6px;color:rgba(255,255,255,.68);font-size:13px">El resultado dura 7 minutos desde que fue ${this.resultValiditySource() === 'processed_at' ? 'procesado' : 'recibido'}.</div>

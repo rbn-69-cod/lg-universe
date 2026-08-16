@@ -92,6 +92,37 @@ describe('NetcodeAccessPage', () => {
     expect(api.searchEmail).toHaveBeenCalledWith({ account_id: 25, subject: 'acceso4' });
   });
 
+  it('does not duplicate the found value inside the SweetAlert modal', async () => {
+    api.searchEmail.mockReturnValue(
+      of({
+        status: 'success',
+        found: true,
+        message: 'OK',
+        value: '3002',
+        type: 'codigo',
+        email: 'cliente@example.com',
+        received_at: '2026-08-16 05:20:03',
+        processed_at: '2026-08-16 05:20:03',
+        expires_at: '2026-08-16 05:27:03',
+        seconds_remaining: 420,
+        validity_source: 'processed_at',
+      })
+    );
+
+    await component.startAccessCodeSearch(false);
+
+    const swalCall = vi.mocked(Swal.fire).mock.calls.find(([config]) => {
+      if (typeof config !== 'object' || config === null || !('title' in config)) {
+        return false;
+      }
+
+      return (config as { title?: string }).title === 'CODIGO ENCONTRADO';
+    });
+
+    expect(swalCall).toBeTruthy();
+    expect(String((swalCall?.[0] as { html?: string }).html ?? '')).not.toContain('3002');
+  });
+
   it('formats the countdown as MM:SS and stops at 00:00', () => {
     (component as unknown as { startResultValidityCountdown: (seconds: number) => void }).startResultValidityCountdown(65);
 
