@@ -24,12 +24,12 @@
                         <input
                             name="email"
                             type="email"
-                            value="{{ old('email', 'igr.ruben@gmail.com') }}"
+                            value="{{ old('email') }}"
                             required
                             autofocus
-                            autocomplete="username"
+                            autocomplete="off"
                             class="w-full rounded-lg border border-white/10 bg-white/[.08] px-4 py-4 text-white outline-none transition placeholder:text-white/32 focus:border-cyan-300/60 focus:ring-4 focus:ring-cyan-300/10"
-                            placeholder="igr.ruben@gmail.com"
+                            placeholder="Ingresa tu correo"
                         >
                         @error('email')
                             <span class="mt-2 block text-sm text-rose-300">{{ $message }}</span>
