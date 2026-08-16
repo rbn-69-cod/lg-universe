@@ -20,6 +20,8 @@ services:
       dockerfile: docker/backend/Dockerfile
       args:
         INSTALL_DEV: "true"
+    env_file:
+      - .env
     environment:
       APP_NAME: ${APP_NAME:-Laravel}
       APP_ENV: ${APP_ENV:-local}
@@ -27,9 +29,6 @@ services:
       APP_DEBUG: ${APP_DEBUG:-true}
       APP_URL: ${APP_URL:-http://localhost:8080}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:4200}
-      ADMIN_NAME: ${ADMIN_NAME:-Administrador}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       LOG_CHANNEL: ${LOG_CHANNEL:-stack}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
       DB_CONNECTION: mysql
@@ -82,6 +81,8 @@ services:
       dockerfile: docker/backend/Dockerfile
       args:
         INSTALL_DEV: "true"
+    env_file:
+      - .env
     environment:
       APP_NAME: ${APP_NAME:-Laravel}
       APP_ENV: ${APP_ENV:-local}
@@ -89,9 +90,6 @@ services:
       APP_DEBUG: ${APP_DEBUG:-true}
       APP_URL: ${APP_URL:-http://localhost:8080}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:4200}
-      ADMIN_NAME: ${ADMIN_NAME:-Administrador}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       LOG_CHANNEL: ${LOG_CHANNEL:-stack}
       LOG_LEVEL: ${LOG_LEVEL:-debug}
       DB_CONNECTION: mysql

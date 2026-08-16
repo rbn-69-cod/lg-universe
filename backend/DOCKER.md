@@ -99,6 +99,7 @@ docker compose exec backend php artisan admin:ensure-user
 ```
 
 Ambos leen `ADMIN_EMAIL` y `ADMIN_PASSWORD`, crean el usuario si no existe, lo actualizan si ya existe, asignan rol `admin` y no imprimen la contrasena.
+Docker pasa estas variables al contenedor mediante `env_file: .env`; no deben declararse con correos o passwords por defecto en `docker-compose.yml`.
 
 ## Backup MySQL
 

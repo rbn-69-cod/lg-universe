@@ -19,6 +19,16 @@ test('initial admin command creates an administrator from options', function () 
         ->and($user->password)->not->toBe('secure-password');
 });
 
+test('initial admin command rejects placeholder email values', function () {
+    config()->set('admin.initial.name', 'Administrador');
+    config()->set('admin.initial.email', 'TU_CORREO_ADMIN');
+    config()->set('admin.initial.password', 'secure-password');
+
+    $this->artisan('admin:ensure-user')->assertFailed();
+
+    expect(User::query()->count())->toBe(0);
+});
+
 test('initial admin seeder uses environment values and is idempotent', function () {
     config()->set('admin.initial.name', 'Admin Produccion');
     config()->set('admin.initial.email', 'owner@example.com');
