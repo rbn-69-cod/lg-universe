@@ -47,6 +47,10 @@ services:
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-hello@example.com}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Laravel}
+      IMAP_HOST: ${IMAP_HOST:-}
+      IMAP_PORT: ${IMAP_PORT:-993}
+      IMAP_ENCRYPTION: ${IMAP_ENCRYPTION:-ssl}
+      IMAP_FOLDER: ${IMAP_FOLDER:-INBOX}
       IMAP_SERVER: ${IMAP_SERVER:-}
       IMAP_USER: ${IMAP_USER:-}
       IMAP_MAILBOX: ${IMAP_MAILBOX:-{mail.spacemail.com:993/imap/ssl}INBOX}
@@ -107,6 +111,10 @@ services:
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-hello@example.com}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Laravel}
+      IMAP_HOST: ${IMAP_HOST:-}
+      IMAP_PORT: ${IMAP_PORT:-993}
+      IMAP_ENCRYPTION: ${IMAP_ENCRYPTION:-ssl}
+      IMAP_FOLDER: ${IMAP_FOLDER:-INBOX}
       IMAP_SERVER: ${IMAP_SERVER:-}
       IMAP_USER: ${IMAP_USER:-}
       IMAP_MAILBOX: ${IMAP_MAILBOX:-{mail.spacemail.com:993/imap/ssl}INBOX}

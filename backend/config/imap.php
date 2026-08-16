@@ -1,8 +1,33 @@
 <?php
 
+$host = trim((string) env('IMAP_HOST', ''));
+$port = (int) env('IMAP_PORT', 993);
+$encryption = strtolower(trim((string) env('IMAP_ENCRYPTION', 'ssl')));
+$folder = trim((string) env('IMAP_FOLDER', 'INBOX')) ?: 'INBOX';
+
+$mailbox = env('IMAP_SERVER') ?: env('IMAP_MAILBOX');
+
+if ($host !== '') {
+    $flags = '/imap';
+
+    if ($encryption === 'ssl') {
+        $flags .= '/ssl';
+    } elseif ($encryption === 'tls') {
+        $flags .= '/tls';
+    } elseif (in_array($encryption, ['none', 'notls'], true)) {
+        $flags .= '/notls';
+    }
+
+    $mailbox = sprintf('{%s:%d%s}%s', $host, $port > 0 ? $port : 993, $flags, $folder);
+}
+
 return [
-    'mailbox' => env('IMAP_SERVER') ?: env('IMAP_MAILBOX', '{mail.spacemail.com:993/imap/ssl}INBOX'),
-    'username' => env('IMAP_USER') ?: env('IMAP_USERNAME'),
+    'host' => $host !== '' ? $host : preg_replace('/^\{([^}:]+).*$/', '$1', (string) ($mailbox ?: 'mail.spacemail.com')),
+    'port' => $port > 0 ? $port : 993,
+    'encryption' => $encryption ?: 'ssl',
+    'folder' => $folder,
+    'mailbox' => $mailbox ?: '{mail.spacemail.com:993/imap/ssl}INBOX',
+    'username' => env('IMAP_USERNAME') ?: env('IMAP_USER'),
     'password' => env('IMAP_PASSWORD'),
     'search_criteria' => env('IMAP_SEARCH_CRITERIA', 'UNSEEN'),
     'mark_seen' => env('IMAP_MARK_SEEN', true),

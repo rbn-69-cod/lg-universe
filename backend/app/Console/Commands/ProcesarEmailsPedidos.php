@@ -49,6 +49,9 @@ class ProcesarEmailsPedidos extends Command
     {
         $this->log('Iniciando importador IMAP.');
 
+        $imapHost = (string) config('imap.host', '');
+        $imapPort = (int) config('imap.port', 993);
+        $imapEncryption = (string) config('imap.encryption', 'ssl');
         $imapServidor = (string) config('imap.mailbox');
         $imapUsuario = (string) config('imap.username');
         $imapPassword = (string) config('imap.password');
@@ -57,18 +60,35 @@ class ProcesarEmailsPedidos extends Command
 
         $this->limpiarCorreosAntiguos($dbTabla);
 
+        $this->log('IMAP host: '.($imapHost !== '' ? $imapHost : 'NO CONFIGURADO'));
+        $this->log('IMAP port: '.$imapPort);
+        $this->log('IMAP encryption: '.$imapEncryption);
+        $this->log('IMAP username: '.$this->maskEmail($imapUsuario));
+        $this->log('IMAP mailbox flags: '.$this->maskMailbox($imapServidor));
+
         if ($imapUsuario === '' || $imapPassword === '') {
             $this->log('IMAP no configurado: faltan credenciales en variables de entorno.');
 
             return;
         }
 
+        $connectionOk = $this->checkTcpConnection($imapHost, $imapPort);
+        $this->log('IMAP connection: '.($connectionOk ? 'OK' : 'ERROR'));
+
+        if (! $connectionOk) {
+            return;
+        }
+
         $inbox = @imap_open($imapServidor, $imapUsuario, $imapPassword);
         if (! $inbox) {
-            $this->log('Error conexion IMAP: '.imap_last_error());
+            $error = (string) imap_last_error();
+            $this->log('IMAP authentication: '.$this->imapAuthStatus($error));
+            $this->log('Error conexion IMAP: '.$this->sanitizeImapError($error, $imapUsuario));
 
             return;
         }
+
+        $this->log('IMAP authentication: OK');
 
         $emailsUids = imap_search($inbox, $searchCriteria, SE_UID);
 
@@ -415,6 +435,72 @@ class ProcesarEmailsPedidos extends Command
         if (filter_var(config('imap.mark_seen', true), FILTER_VALIDATE_BOOLEAN)) {
             @imap_setflag_full($inbox, $uid, '\\Seen', ST_UID);
         }
+    }
+
+    private function checkTcpConnection(string $host, int $port): bool
+    {
+        if ($host === '' || $port <= 0) {
+            return false;
+        }
+
+        $errno = 0;
+        $errstr = '';
+        $connection = @fsockopen($host, $port, $errno, $errstr, 10);
+
+        if (! is_resource($connection)) {
+            return false;
+        }
+
+        fclose($connection);
+
+        return true;
+    }
+
+    private function maskEmail(string $email): string
+    {
+        if ($email === '') {
+            return 'NO CONFIGURADO';
+        }
+
+        if (! str_contains($email, '@')) {
+            return substr($email, 0, 2).'***';
+        }
+
+        [$local, $domain] = explode('@', $email, 2);
+        $prefix = mb_substr($local, 0, min(3, mb_strlen($local)));
+
+        return $prefix.'***@'.$domain;
+    }
+
+    private function maskMailbox(string $mailbox): string
+    {
+        return preg_replace('/\{([^}:]+):(\d+)([^}]*)\}.*/', '{$1:$2$3}***', $mailbox) ?: 'NO CONFIGURADO';
+    }
+
+    private function imapAuthStatus(string $error): string
+    {
+        $normalized = mb_strtolower($error);
+
+        if (str_contains($normalized, 'auth') || str_contains($normalized, 'login') || str_contains($normalized, 'password')) {
+            return 'ERROR';
+        }
+
+        return 'ERROR';
+    }
+
+    private function sanitizeImapError(string $error, string $username): string
+    {
+        $password = (string) config('imap.password');
+
+        if ($password !== '') {
+            $error = str_replace($password, '[hidden]', $error);
+        }
+
+        if ($username !== '') {
+            $error = str_replace($username, $this->maskEmail($username), $error);
+        }
+
+        return $error !== '' ? $error : 'Sin detalle del servidor IMAP.';
     }
 
     protected function findBodyPart($structure, string $mime, string $sec = '', $inbox = null, int $uid = 0): array
