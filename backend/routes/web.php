@@ -72,10 +72,10 @@ Route::get('/legacy/dashboard', DashboardController::class)
     ->name('dashboard.legacy');
 
 Route::get('/cron/procesar-emails', function () {
-    $tokenRequest = request('token');
-    $tokenEnv = (string) config('services.cron.token');
+    $tokenRequest = (string) request()->query('token', '');
+    $tokenEnv = trim((string) env('CRON_TOKEN', ''));
 
-    if ($tokenEnv === '' || ! hash_equals($tokenEnv, (string) $tokenRequest)) {
+    if ($tokenEnv === '' || $tokenRequest === '' || ! hash_equals($tokenEnv, $tokenRequest)) {
         Log::warning('Intento de acceso al cron con token invalido', [
             'ip' => request()->ip(),
         ]);
