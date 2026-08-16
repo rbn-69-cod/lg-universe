@@ -66,16 +66,20 @@ export class NetcodeAccessPage {
   readonly scanStatus = signal('Buscando correo reciente...');
   readonly resultValue = signal('');
   readonly resultType = signal('');
+  readonly resultSecondsLeft = signal(0);
+  readonly resultExpiresAt = signal('');
   readonly searchAttempt = signal(0);
   readonly searchFinishedWithoutResult = signal(false);
   readonly isSearching = signal(false);
 
   private countdown: number | null = null;
   private polling: number | null = null;
+  private resultValidityCountdown: number | null = null;
   private successfulPollInCurrentSearch = false;
 
   readonly resultIsLink = computed(() => /^https?:\/\//i.test(this.resultValue()));
   readonly accessCodeBotUrl = computed(() => this.account()?.cuenta?.bot_acceso4_masked_url || '');
+  readonly resultValidityLabel = computed(() => this.formatSeconds(this.resultSecondsLeft()));
   readonly searchAttemptLabel = computed(() => `Busqueda ${Math.max(this.searchAttempt(), 1)} de ${MAX_SEARCH_ATTEMPTS}`);
   readonly canRetrySearch = computed(
     () =>
@@ -259,6 +263,7 @@ export class NetcodeAccessPage {
     this.isSearching.set(true);
     this.resultValue.set('');
     this.resultType.set('');
+    this.stopResultValidityCountdown();
     this.timeLeft.set(MAX_TIME);
     this.scanStatus.set('Buscando inicio sesion codigo 4 digitos...');
     this.viewState.set('scan');
@@ -346,12 +351,15 @@ export class NetcodeAccessPage {
         if (data.status === 'success' && data.valor_extraido) {
           this.stop();
           const value = String(data.valor_extraido).trim();
+          const secondsLeft = Math.max(0, Number(data.seconds_remaining ?? 420));
           this.resultValue.set(value);
           this.resultType.set(data.tipo || '');
+          this.resultExpiresAt.set(data.expires_at || '');
+          this.startResultValidityCountdown(secondsLeft);
           this.searchFinishedWithoutResult.set(false);
           this.isSearching.set(false);
           this.viewState.set('result');
-          void this.showCodeFound(value);
+          void this.showCodeFound(value, secondsLeft);
         }
       },
       error: async () => {
@@ -397,6 +405,9 @@ export class NetcodeAccessPage {
   private resetCodeSearchState(resetAttempts: boolean): void {
     this.resultValue.set('');
     this.resultType.set('');
+    this.resultSecondsLeft.set(0);
+    this.resultExpiresAt.set('');
+    this.stopResultValidityCountdown();
     this.searchFinishedWithoutResult.set(false);
     this.isSearching.set(false);
     this.successfulPollInCurrentSearch = false;
@@ -440,14 +451,35 @@ export class NetcodeAccessPage {
     });
   }
 
-  private async showCodeFound(value: string): Promise<void> {
+  private async showCodeFound(value: string, secondsLeft = this.resultSecondsLeft()): Promise<void> {
+    let modalSeconds = Math.max(0, secondsLeft);
+    let modalInterval: number | null = null;
+
     const response = await Swal.fire({
       title: 'Codigo encontrado',
-      html: `<div style="font-size:44px;font-weight:900;letter-spacing:.18em;color:#35f7a4">${this.escapeHtml(value)}</div>`,
+      html: `
+        <div style="font-size:44px;font-weight:900;letter-spacing:.18em;color:#35f7a4">${this.escapeHtml(value)}</div>
+        <div style="margin-top:12px;color:#ffd166;font-weight:900">Vigente por <span id="swal-code-timer">${this.formatSeconds(modalSeconds)}</span></div>
+        <div style="margin-top:6px;color:rgba(255,255,255,.68);font-size:13px">El codigo o link dura 7 minutos desde que fue guardado.</div>
+      `,
       icon: 'success',
       confirmButtonText: this.resultIsLink() ? 'Cerrar' : 'Copiar codigo',
       background: '#111426',
       color: '#fff',
+      didOpen: () => {
+        modalInterval = window.setInterval(() => {
+          modalSeconds = Math.max(0, modalSeconds - 1);
+          const timer = document.getElementById('swal-code-timer');
+          if (timer) timer.textContent = this.formatSeconds(modalSeconds);
+          if (modalSeconds <= 0 && modalInterval) {
+            window.clearInterval(modalInterval);
+            modalInterval = null;
+          }
+        }, 1000);
+      },
+      willClose: () => {
+        if (modalInterval) window.clearInterval(modalInterval);
+      },
     });
 
     if (response.isConfirmed && !this.resultIsLink()) {
@@ -474,6 +506,29 @@ export class NetcodeAccessPage {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
+  }
+
+  private startResultValidityCountdown(seconds: number): void {
+    this.stopResultValidityCountdown();
+    this.resultSecondsLeft.set(Math.max(0, seconds));
+    this.resultValidityCountdown = window.setInterval(() => {
+      const next = Math.max(0, this.resultSecondsLeft() - 1);
+      this.resultSecondsLeft.set(next);
+      if (next <= 0) this.stopResultValidityCountdown();
+    }, 1000);
+  }
+
+  private stopResultValidityCountdown(): void {
+    if (this.resultValidityCountdown) window.clearInterval(this.resultValidityCountdown);
+    this.resultValidityCountdown = null;
+  }
+
+  private formatSeconds(seconds: number): string {
+    const safeSeconds = Math.max(0, Math.floor(seconds));
+    const minutes = Math.floor(safeSeconds / 60).toString().padStart(2, '0');
+    const remainder = (safeSeconds % 60).toString().padStart(2, '0');
+
+    return `${minutes}:${remainder}`;
   }
 
   private tutorialFor(key: string): Tutorial {

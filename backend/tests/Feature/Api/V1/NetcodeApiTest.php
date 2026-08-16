@@ -57,7 +57,10 @@ it('finds a 4 digit login code by processed time even when received time is olde
         ->assertOk()
         ->assertJsonPath('status', 'success')
         ->assertJsonPath('valor_extraido', '1234')
-        ->assertJsonPath('tipo', 'codigo');
+        ->assertJsonPath('tipo', 'codigo')
+        ->assertJsonPath('valid_for_minutes', 7)
+        ->assertJsonPath('seconds_remaining', fn (int $seconds) => $seconds > 0 && $seconds <= 420)
+        ->assertJsonStructure(['processed_at', 'expires_at']);
 });
 
 it('does not expose account or table bot links through the public netcode search', function () {

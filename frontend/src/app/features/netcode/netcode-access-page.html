@@ -200,6 +200,10 @@
       <section class="result active">
         <div class="attempt-badge">{{ searchAttemptLabel() }}</div>
         <div class="result-value" [class.code]="!resultIsLink()" [class.link]="resultIsLink()">{{ resultValue() }}</div>
+        <div class="validity-timer" [class.expired]="resultSecondsLeft() <= 0">
+          <span>{{ resultSecondsLeft() > 0 ? 'Vigente por' : 'Tiempo agotado' }}</span>
+          <b>{{ resultValidityLabel() }}</b>
+        </div>
         <p>{{ resultIsLink() ? 'Abre el enlace cuanto antes.' : 'Copia el codigo y usalo antes de que venza.' }}</p>
         <div class="scan-actions">
           <button class="ghost" type="button" (click)="copyOrOpen()">

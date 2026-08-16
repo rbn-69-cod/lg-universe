@@ -9,6 +9,8 @@ use Throwable;
 
 class ApiBuscarEmailController extends Controller
 {
+    private const CODE_TTL_MINUTES = 7;
+
     public function buscar(Request $request)
     {
         try {
@@ -19,8 +21,7 @@ class ApiBuscarEmailController extends Controller
 
             $emailDestinatario = mb_strtolower(trim($request->email));
             $tipoSolicitud = trim($request->subject);
-            $retentionMinutes = min(7, max(1, (int) config('imap.retention_minutes', 7)));
-            $validFrom = now()->subMinutes($retentionMinutes);
+            $validFrom = now()->subMinutes(self::CODE_TTL_MINUTES);
 
             $query = EmailPedido::whereRaw('LOWER(destinatario_original) = ?', [$emailDestinatario])
                 ->where(function ($q) use ($validFrom) {
@@ -100,12 +101,22 @@ class ApiBuscarEmailController extends Controller
                 $fechaFormat = null;
             }
 
+            $validityStart = $this->validityStart($emailDataModel);
+            $expiresAt = $validityStart?->copy()->addMinutes(self::CODE_TTL_MINUTES);
+            $secondsRemaining = $expiresAt && $expiresAt->greaterThan(now())
+                ? (int) now()->diffInSeconds($expiresAt)
+                : 0;
+
             return $this->safeJsonResponse([
                 'status' => 'success',
                 'message' => 'Dato encontrado.',
                 'valor_extraido' => $valorFinal,
                 'tipo' => preg_match('/^\d{4}$/', $valorFinal) ? 'codigo' : 'link',
                 'fecha' => $fechaFormat,
+                'processed_at' => $validityStart?->format('Y-m-d H:i:s'),
+                'expires_at' => $expiresAt?->format('Y-m-d H:i:s'),
+                'seconds_remaining' => $secondsRemaining,
+                'valid_for_minutes' => self::CODE_TTL_MINUTES,
                 'debug_id' => $emailDataModel->id,
                 'asunto_found' => $emailDataModel->asunto,
             ]);
@@ -156,6 +167,19 @@ class ApiBuscarEmailController extends Controller
             fn (string $keyword) => trim($keyword),
             explode(',', $raw)
         ))));
+    }
+
+    private function validityStart(EmailPedido $email): ?Carbon
+    {
+        try {
+            if ($email->fecha_procesado_db) {
+                return Carbon::parse($email->fecha_procesado_db);
+            }
+
+            return $email->fecha_recibido ? Carbon::parse($email->fecha_recibido) : null;
+        } catch (Throwable) {
+            return null;
+        }
     }
 
     private function applyKeywordFilters($query, array $keywords): void

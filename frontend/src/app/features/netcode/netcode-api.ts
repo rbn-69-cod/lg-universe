@@ -17,6 +17,10 @@ export interface NetcodeSearchResponse {
   valor_extraido?: string;
   tipo?: 'codigo' | 'link';
   fecha?: string | null;
+  processed_at?: string | null;
+  expires_at?: string | null;
+  seconds_remaining?: number;
+  valid_for_minutes?: number;
   debug_id?: number;
   asunto_found?: string;
 }
