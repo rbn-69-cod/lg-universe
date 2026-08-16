@@ -53,7 +53,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm certbot
 docker compose -f docker-compose.yml -f docker-compose.prod.yml exec nginx nginx -s reload
 ```
 
-No usar `certbot --nginx` en el host porque Nginx esta dentro del contenedor `lg-nginx`.
+No usar `certbot --nginx` en el host porque Nginx esta dentro del contenedor `lg-nginx`. El volumen de challenges ACME lo escribe el servicio `certbot`; Nginx lo monta como solo lectura.
 
 6. Ejecutar migraciones solo tras backup:
 

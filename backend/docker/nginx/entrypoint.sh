@@ -7,7 +7,7 @@ cert_path="${live_dir}/fullchain.pem"
 key_path="${live_dir}/privkey.pem"
 
 if [ ! -s "${cert_path}" ] || [ ! -s "${key_path}" ]; then
-    mkdir -p "${live_dir}" /var/www/certbot/.well-known/acme-challenge
+    mkdir -p "${live_dir}"
     openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
         -keyout "${key_path}" \
         -out "${cert_path}" \

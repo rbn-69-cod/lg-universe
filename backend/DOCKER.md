@@ -86,6 +86,8 @@ Nginx corre dentro de Docker. No uses `certbot --nginx` en el host.
 
 El contenedor Nginx genera un certificado temporal de 1 dia solo si todavia no existe `/etc/letsencrypt/live/igruben.lat/fullchain.pem`. Esto permite que Nginx arranque antes de emitir el certificado real. Ese certificado temporal vive en el volumen Docker, no en Git.
 
+Nginx monta `certbot_challenges` como solo lectura. El directorio `/.well-known/acme-challenge/` debe ser creado por el servicio `certbot`, que monta el mismo volumen con escritura.
+
 Primer certificado para `igruben.lat`:
 
 ```bash
