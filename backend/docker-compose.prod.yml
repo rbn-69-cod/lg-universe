@@ -22,6 +22,12 @@ services:
       APP_DEBUG: "false"
       APP_URL: ${APP_URL}
       FRONTEND_URL: ${FRONTEND_URL:-${APP_URL}}
+      IMAP_HOST: ${IMAP_HOST:-}
+      IMAP_PORT: ${IMAP_PORT:-993}
+      IMAP_ENCRYPTION: ${IMAP_ENCRYPTION:-ssl}
+      IMAP_FOLDER: ${IMAP_FOLDER:-INBOX}
+      IMAP_USERNAME: ${IMAP_USERNAME:-}
+      IMAP_PASSWORD: ${IMAP_PASSWORD:-}
     restart: unless-stopped
     volumes: !override
       - app_storage:/var/www/html/storage
@@ -34,6 +40,12 @@ services:
       APP_DEBUG: "false"
       APP_URL: ${APP_URL}
       FRONTEND_URL: ${FRONTEND_URL:-${APP_URL}}
+      IMAP_HOST: ${IMAP_HOST:-}
+      IMAP_PORT: ${IMAP_PORT:-993}
+      IMAP_ENCRYPTION: ${IMAP_ENCRYPTION:-ssl}
+      IMAP_FOLDER: ${IMAP_FOLDER:-INBOX}
+      IMAP_USERNAME: ${IMAP_USERNAME:-}
+      IMAP_PASSWORD: ${IMAP_PASSWORD:-}
     restart: unless-stopped
     volumes: !override
       - app_storage:/var/www/html/storage
