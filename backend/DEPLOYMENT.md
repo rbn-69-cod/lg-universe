@@ -42,15 +42,7 @@ La entrada publica es Nginx en puertos `80` y `443`. Angular es el frontend prin
 Antes del certificado real, Nginx puede arrancar con un certificado temporal generado dentro del volumen Docker. Luego se emite Let's Encrypt por webroot:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm certbot certonly \
-  --webroot \
-  -w /var/www/certbot \
-  -d igruben.lat \
-  --email TU_CORREO_REAL \
-  --agree-tos \
-  --no-eff-email \
-  --force-renewal
-docker compose -f docker-compose.yml -f docker-compose.prod.yml exec nginx nginx -s reload
+CERTBOT_EMAIL=TU_CORREO_REAL sh scripts/issue-certificate.sh
 ```
 
 No usar `certbot --nginx` en el host porque Nginx esta dentro del contenedor `lg-nginx`. El volumen de challenges ACME lo escribe el servicio `certbot`; Nginx lo monta como solo lectura.
@@ -76,6 +68,7 @@ docker compose exec backend php artisan route:list
 docker compose exec backend php artisan queue:work --once
 curl -I https://igruben.lat
 curl -I https://igruben.lat/api/v1/payment-settings
+echo | openssl s_client -connect igruben.lat:443 -servername igruben.lat 2>/dev/null | openssl x509 -noout -issuer -subject -dates
 ```
 
 ## Renovacion SSL

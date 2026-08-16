@@ -92,16 +92,10 @@ Primer certificado para `igruben.lat`:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm certbot certonly \
-  --webroot \
-  -w /var/www/certbot \
-  -d igruben.lat \
-  --email TU_CORREO_REAL \
-  --agree-tos \
-  --no-eff-email \
-  --force-renewal
-docker compose -f docker-compose.yml -f docker-compose.prod.yml exec nginx nginx -s reload
+CERTBOT_EMAIL=TU_CORREO_REAL sh scripts/issue-certificate.sh
 ```
+
+`scripts/issue-certificate.sh` aparta el certificado temporal autofirmado si existe en `live/igruben.lat` sin una configuracion `renewal/igruben.lat.conf`, crea el challenge webroot desde el servicio `certbot` y emite la lineage real de Let's Encrypt. No elimina volumenes ni toca MySQL.
 
 No agregues `www.igruben.lat` al certificado hasta verificar que su DNS exista y apunte a la VM.
 
@@ -112,6 +106,7 @@ curl -I http://igruben.lat
 curl -I https://igruben.lat
 curl -I https://igruben.lat/api/v1/payment-settings
 docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm certbot certificates
+echo | openssl s_client -connect igruben.lat:443 -servername igruben.lat 2>/dev/null | openssl x509 -noout -issuer -subject -dates
 ```
 
 Renovacion manual:
