@@ -88,6 +88,13 @@ class DashboardApiController extends Controller
             'bot_acceso4_url' => ['nullable', 'url'],
         ]);
 
+        if (! $this->isNetflixAccount($cuenta)) {
+            $data['bot_preferencia'] = 'principal';
+            $data['bot_hogar_url'] = null;
+            $data['bot_temporal_url'] = null;
+            $data['bot_acceso4_url'] = null;
+        }
+
         $cuenta->update([
             'cliente_acceso_usuario' => $data['cliente_acceso_usuario'] ?? null,
             'bot_preferencia' => $data['bot_preferencia'],
@@ -100,6 +107,14 @@ class DashboardApiController extends Controller
             'message' => 'Links de bot actualizados.',
             'data' => $this->dashboardData->api(),
         ]);
+    }
+
+    private function isNetflixAccount(Cuenta $cuenta): bool
+    {
+        $cuenta->loadMissing('producto');
+        $name = mb_strtolower((string) ($cuenta->producto?->nombre ?: $cuenta->source_platforma), 'UTF-8');
+
+        return str_contains($name, 'netflix');
     }
 
     public function updatePaymentSettings(Request $request): JsonResponse

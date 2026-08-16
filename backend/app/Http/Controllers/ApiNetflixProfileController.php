@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Perfil;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
 use Throwable;
 
 class ApiNetflixProfileController extends Controller
@@ -189,11 +190,40 @@ class ApiNetflixProfileController extends Controller
                 'fila_excel' => $profile->cuenta->source_row,
                 'cliente_acceso_usuario' => $profile->cuenta->cliente_acceso_usuario,
                 'bot_preferencia' => $profile->cuenta->bot_preferencia ?: 'principal',
-                'bot_hogar_url' => $profile->cuenta->bot_hogar_url,
-                'bot_temporal_url' => $profile->cuenta->bot_temporal_url,
-                'bot_acceso4_url' => $profile->cuenta->bot_acceso4_url,
+                'bot_hogar_url' => null,
+                'bot_temporal_url' => null,
+                'bot_acceso4_url' => null,
+                'bot_acceso4_masked_url' => $this->maskedAccessCodeBotUrl($profile),
             ],
         ]);
+    }
+
+    private function maskedAccessCodeBotUrl(Perfil $profile): ?string
+    {
+        $account = $profile->cuenta;
+        if (! $account || ! $this->isNetflix($profile) || $account->bot_preferencia !== 'personalizado') {
+            return null;
+        }
+
+        $targetUrl = trim((string) $account->bot_acceso4_url);
+        if ($targetUrl === '' || ! filter_var($targetUrl, FILTER_VALIDATE_URL)) {
+            return null;
+        }
+
+        return route('netcode.bot.acceso4', [
+            'payload' => Crypt::encryptString(json_encode([
+                'type' => 'acceso4',
+                'account_id' => $account->id,
+                'url' => $targetUrl,
+            ], JSON_THROW_ON_ERROR)),
+        ]);
+    }
+
+    private function isNetflix(Perfil $profile): bool
+    {
+        $name = mb_strtolower((string) ($profile->cuenta?->producto?->nombre ?: $profile->source_platforma), 'UTF-8');
+
+        return str_contains($name, 'netflix');
     }
 
     private function digits(string $value): string

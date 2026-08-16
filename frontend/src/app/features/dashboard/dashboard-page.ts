@@ -657,10 +657,10 @@ export class DashboardPage {
     this.editingAccountId.set(account.id);
     this.accountBotForm.set({
       cliente_acceso_usuario: account.cliente_acceso_usuario || '',
-      bot_preferencia: 'principal',
-      bot_hogar_url: '',
-      bot_temporal_url: '',
-      bot_acceso4_url: '',
+      bot_preferencia: this.isNetflixAccount(account) ? account.bot_preferencia || 'principal' : 'principal',
+      bot_hogar_url: account.bot_hogar_url || '',
+      bot_temporal_url: account.bot_temporal_url || '',
+      bot_acceso4_url: account.bot_acceso4_url || '',
     });
   }
 
@@ -672,7 +672,17 @@ export class DashboardPage {
     this.message.set('');
     this.error.set('');
 
-    this.api.updateAccountBotLinks(accountId, this.accountBotForm()).subscribe({
+    const account = this.data()?.accounts.find((item) => item.id === accountId);
+    const form = this.accountBotForm();
+    const payload: AccountBotLinksPayload = {
+      ...form,
+      bot_preferencia: account && this.isNetflixAccount(account) ? form.bot_preferencia : 'principal',
+      bot_hogar_url: '',
+      bot_temporal_url: '',
+      bot_acceso4_url: account && this.isNetflixAccount(account) && form.bot_preferencia === 'personalizado' ? form.bot_acceso4_url : '',
+    };
+
+    this.api.updateAccountBotLinks(accountId, payload).subscribe({
       next: (response) => {
         this.data.set(response.data);
         this.message.set('Links de bot de la cuenta actualizados.');
@@ -694,6 +704,10 @@ export class DashboardPage {
 
   updateAccountBotField<K extends keyof AccountBotLinksPayload>(field: K, value: AccountBotLinksPayload[K]): void {
     this.accountBotForm.update((current) => ({ ...current, [field]: value }));
+  }
+
+  isNetflixAccount(account: DashboardAccount): boolean {
+    return `${account.source_platforma || ''}`.toLowerCase().includes('netflix');
   }
 
   runImap(): void {

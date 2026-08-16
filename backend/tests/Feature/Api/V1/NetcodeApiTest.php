@@ -166,6 +166,8 @@ it('validates netflix profile access directly with the imported client access us
         'source_platforma' => 'Netflix Premium',
         'source_hoja_excel' => 'NETFLIX',
         'source_row' => 10,
+        'bot_preferencia' => 'personalizado',
+        'bot_acceso4_url' => 'https://example.com/bot-codigo-netflix',
     ]);
 
     Perfil::query()->create([
@@ -200,7 +202,7 @@ it('validates netflix profile access directly with the imported client access us
         ->assertNotFound()
         ->assertJsonPath('message', 'El PIN no coincide con ese acceso.');
 
-    $this->postJson('/api/v1/netcode/netflix-validar', [
+    $response = $this->postJson('/api/v1/netcode/netflix-validar', [
         'step' => 'cliente_acceso',
         'cliente_acceso_usuario' => 'token-x-123',
         'pin' => '4321',
@@ -210,5 +212,14 @@ it('validates netflix profile access directly with the imported client access us
         ->assertJsonPath('step', 'cliente_acceso')
         ->assertJsonPath('cuenta.email', 'directo@example.com')
         ->assertJsonPath('perfil.nombre', 'MANDI')
-        ->assertJsonPath('perfil.cliente_acceso_usuario', 'TOKEN-X-123');
+        ->assertJsonPath('perfil.cliente_acceso_usuario', 'TOKEN-X-123')
+        ->assertJsonPath('cuenta.bot_preferencia', 'personalizado')
+        ->assertJsonPath('cuenta.bot_acceso4_url', null)
+        ->assertJsonPath('cuenta.bot_acceso4_masked_url', fn (string $url) => str_contains($url, '/netcode/bot/acceso4?payload='));
+
+    $maskedUrl = $response->json('cuenta.bot_acceso4_masked_url');
+    $this->get($maskedUrl)
+        ->assertOk()
+        ->assertSee('bot exclusivo de codigo de acceso')
+        ->assertSee('example.com');
 });

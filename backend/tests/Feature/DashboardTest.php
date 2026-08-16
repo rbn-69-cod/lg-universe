@@ -147,15 +147,53 @@ test('authenticated users can update account bot links', function () {
 
     $this->putJson("/api/v1/dashboard/accounts/{$account->id}/bot-links", [
         'cliente_acceso_usuario' => 'cliente-mandi',
-        'bot_preferencia' => 'principal',
+        'bot_preferencia' => 'personalizado',
         'bot_hogar_url' => '',
         'bot_temporal_url' => '',
-        'bot_acceso4_url' => '',
+        'bot_acceso4_url' => 'https://example.com/bot-codigo-netflix',
     ])
         ->assertOk()
         ->assertJsonPath('data.accounts.0.cliente_acceso_usuario', 'cliente-mandi')
-        ->assertJsonPath('data.accounts.0.bot_preferencia', 'principal')
+        ->assertJsonPath('data.accounts.0.bot_preferencia', 'personalizado')
         ->assertJsonPath('data.accounts.0.bot_hogar_url', null)
+        ->assertJsonPath('data.accounts.0.bot_acceso4_url', 'https://example.com/bot-codigo-netflix');
+});
+
+test('account access code bot links are restricted to netflix accounts', function () {
+    $this->actingAs(User::factory()->admin()->create());
+
+    $product = Producto::query()->create([
+        'nombre' => 'Disney Plus',
+        'slug' => 'disney-plus',
+        'precio' => 10,
+        'tipo' => 'perfil',
+        'perfiles_por_cuenta' => 5,
+        'duracion_dias' => 30,
+        'activo' => true,
+    ]);
+
+    $account = Cuenta::query()->create([
+        'producto_id' => $product->id,
+        'email' => 'disney@example.com',
+        'password' => 'secret',
+        'perfiles_total' => 5,
+        'perfiles_usados' => 1,
+        'activo' => true,
+        'source_platforma' => 'Disney Plus',
+        'source_hoja_excel' => 'DISNEY',
+        'source_row' => 3,
+    ]);
+
+    $this->putJson("/api/v1/dashboard/accounts/{$account->id}/bot-links", [
+        'cliente_acceso_usuario' => 'cliente-disney',
+        'bot_preferencia' => 'personalizado',
+        'bot_hogar_url' => '',
+        'bot_temporal_url' => '',
+        'bot_acceso4_url' => 'https://example.com/bot-no-permitido',
+    ])
+        ->assertOk()
+        ->assertJsonPath('data.accounts.0.cliente_acceso_usuario', 'cliente-disney')
+        ->assertJsonPath('data.accounts.0.bot_preferencia', 'principal')
         ->assertJsonPath('data.accounts.0.bot_acceso4_url', null);
 });
 

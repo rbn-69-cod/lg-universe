@@ -92,11 +92,11 @@
     <main class="panel">
         <div class="mark">LG</div>
         <h1>Link protegido</h1>
-        <p>Esta salida requiere sesion iniciada. Revisa el destino antes de continuar.</p>
+        <p>{{ $description ?? 'Esta salida protege el enlace externo. Revisa el destino antes de continuar.' }}</p>
         <div class="host">{{ $host }}</div>
         <div class="actions">
             <a class="primary" href="{{ $targetUrl }}" target="_blank" rel="noopener noreferrer">Abrir bot externo</a>
-            <a class="secondary" href="{{ url('/dashboard') }}">Volver al dashboard</a>
+            <a class="secondary" href="{{ $backUrl ?? url('/dashboard') }}">{{ $backLabel ?? 'Volver al dashboard' }}</a>
         </div>
     </main>
 </body>

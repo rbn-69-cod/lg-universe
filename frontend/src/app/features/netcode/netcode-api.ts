@@ -58,6 +58,12 @@ export interface NetflixProfileValidationResponse {
     activo: boolean;
     hoja_excel: string | null;
     fila_excel: number | null;
+    cliente_acceso_usuario: string | null;
+    bot_preferencia: 'principal' | 'personalizado';
+    bot_hogar_url: string | null;
+    bot_temporal_url: string | null;
+    bot_acceso4_url: string | null;
+    bot_acceso4_masked_url: string | null;
   };
 }
 

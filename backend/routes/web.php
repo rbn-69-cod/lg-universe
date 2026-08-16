@@ -8,6 +8,7 @@ use App\Http\Controllers\ApiBuscarEmailController;
 use App\Http\Controllers\ApiNetflixProfileController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\IAController;
+use App\Http\Controllers\NetcodeBotLinkController;
 use App\Http\Controllers\SecureBotLinkController;
 use App\Livewire\Settings\Appearance;
 use App\Livewire\Settings\Password;
@@ -31,6 +32,8 @@ Route::get('/netcode/inicio-sesion', fn () => view('netcode', [
     'netcodePage' => 'acceso4',
     'adminTutorials' => TutorialContent::public(),
 ]))->name('netcode.acceso4');
+Route::get('/netcode/bot/acceso4', NetcodeBotLinkController::class)
+    ->name('netcode.bot.acceso4');
 
 Route::post('/api/buscar-email', [ApiBuscarEmailController::class, 'buscar'])
     ->middleware('throttle:30,1')

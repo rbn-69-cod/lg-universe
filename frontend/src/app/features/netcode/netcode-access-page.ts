@@ -75,6 +75,7 @@ export class NetcodeAccessPage {
   private successfulPollInCurrentSearch = false;
 
   readonly resultIsLink = computed(() => /^https?:\/\//i.test(this.resultValue()));
+  readonly accessCodeBotUrl = computed(() => this.account()?.cuenta?.bot_acceso4_masked_url || '');
   readonly searchAttemptLabel = computed(() => `Busqueda ${Math.max(this.searchAttempt(), 1)} de ${MAX_SEARCH_ATTEMPTS}`);
   readonly canRetrySearch = computed(
     () =>
@@ -211,16 +212,26 @@ export class NetcodeAccessPage {
     }
 
     if (confirmBeforeSearch) {
+      const hasExclusiveBot = this.accessCodeBotUrl() !== '';
       const accepted = await Swal.fire({
-        title: 'Buscar codigo',
-        text: 'Confirma que Netflix ya pidio el codigo de login.',
+        title: hasExclusiveBot ? 'Bot exclusivo Netflix' : 'Buscar codigo',
+        text: hasExclusiveBot
+          ? 'Esta cuenta usa un bot exclusivo para pedir el codigo de acceso. Abre el bot si aun no pediste el codigo y luego inicia la busqueda.'
+          : 'Confirma que Netflix ya pidio el codigo de login.',
         icon: 'question',
         showCancelButton: true,
-        confirmButtonText: 'Buscar codigo',
+        confirmButtonText: hasExclusiveBot ? 'Ya pedi el codigo' : 'Buscar codigo',
+        denyButtonText: hasExclusiveBot ? 'Abrir bot exclusivo' : undefined,
+        showDenyButton: hasExclusiveBot,
         cancelButtonText: 'Cancelar',
         background: '#111426',
         color: '#fff',
       });
+
+      if (accepted.isDenied) {
+        this.openAccessCodeBot();
+        return;
+      }
 
       if (!accepted.isConfirmed) return;
     }
@@ -297,6 +308,16 @@ export class NetcodeAccessPage {
       ?.writeText(value)
       .then(() => this.showToast('Copiado'))
       .catch(() => this.showCodeFound(value));
+  }
+
+  openAccessCodeBot(): void {
+    const url = this.accessCodeBotUrl();
+    if (!url) {
+      this.showToast('Esta cuenta usa el bot principal');
+      return;
+    }
+
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   openTutorial(key: string): void {

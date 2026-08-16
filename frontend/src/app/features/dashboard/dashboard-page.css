@@ -1261,6 +1261,13 @@ th {
   color: #10131f;
 }
 
+.form-hint {
+  margin: 0;
+  color: rgba(248, 251, 255, 0.62);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .account-bot-actions {
   display: flex;
   gap: 8px;

@@ -485,6 +485,24 @@
                         <span>Usuario acceso cliente</span>
                         <input [ngModel]="accountBotForm().cliente_acceso_usuario" (ngModelChange)="updateAccountBotField('cliente_acceso_usuario', $event)" name="cliente_acceso_usuario" placeholder="Usuario o codigo de acceso unico" />
                       </label>
+                      @if (isNetflixAccount(account)) {
+                        <label>
+                          <span>Bot codigo 4 digitos</span>
+                          <select [ngModel]="accountBotForm().bot_preferencia" (ngModelChange)="updateAccountBotField('bot_preferencia', $event)" name="bot_preferencia">
+                            <option value="principal">Usar bot principal</option>
+                            <option value="personalizado">Usar bot exclusivo</option>
+                          </select>
+                        </label>
+                        @if (accountBotForm().bot_preferencia === 'personalizado') {
+                          <label>
+                            <span>URL bot exclusivo Netflix</span>
+                            <input [ngModel]="accountBotForm().bot_acceso4_url" (ngModelChange)="updateAccountBotField('bot_acceso4_url', $event)" name="bot_acceso4_url" placeholder="https://..." />
+                          </label>
+                          <p class="form-hint">Solo se usa para pedir codigos de acceso de 4 digitos en Netflix.</p>
+                        }
+                      } @else {
+                        <p class="form-hint">Los bots exclusivos de codigo solo estan habilitados para Netflix.</p>
+                      }
                       <div class="account-bot-actions">
                         <button class="btn mini primary" type="submit" [disabled]="savingAccountBots()">{{ savingAccountBots() ? 'Guardando...' : 'Guardar' }}</button>
                         <button class="btn mini" type="button" (click)="cancelAccountBotEdit()">Cancelar</button>

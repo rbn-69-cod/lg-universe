@@ -348,6 +348,33 @@ input {
   background: linear-gradient(135deg, #a000ff, #ff007b);
 }
 
+.exclusive-bot {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid rgba(255, 209, 102, 0.32);
+  border-radius: 18px;
+  padding: 14px;
+  background: rgba(255, 209, 102, 0.08);
+}
+
+.exclusive-bot span {
+  display: block;
+  margin-bottom: 4px;
+  color: #ffd166;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.exclusive-bot p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .result-value {
   text-align: center;
   font-weight: 900;

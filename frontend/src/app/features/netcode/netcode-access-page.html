@@ -146,6 +146,19 @@
             <div class="cred"><span>Excel</span><b>{{ validAccount.perfil?.hoja_excel || '-' }} #{{ validAccount.perfil?.fila_excel || '-' }}</b></div>
           </div>
 
+          @if (accessCodeBotUrl()) {
+            <div class="exclusive-bot">
+              <div>
+                <span>Bot exclusivo Netflix</span>
+                <p>Esta cuenta usa un bot propio para pedir el codigo de acceso de 4 digitos.</p>
+              </div>
+              <button class="ghost" type="button" (click)="openAccessCodeBot()">
+                <svg lucideExternalLink size="17" />
+                Abrir bot
+              </button>
+            </div>
+          }
+
           <button class="bigbtn access" type="button" (click)="startAccessCodeSearch()">
             <svg lucideKey size="28" />
             <span>Buscar codigo<br />de 4 digitos</span>

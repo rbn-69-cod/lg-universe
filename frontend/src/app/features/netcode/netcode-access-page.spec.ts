@@ -40,6 +40,12 @@ describe('NetcodeAccessPage', () => {
         activo: true,
         hoja_excel: 'NETFLIX',
         fila_excel: 3,
+        cliente_acceso_usuario: 'cliente-demo',
+        bot_preferencia: 'principal',
+        bot_hogar_url: null,
+        bot_temporal_url: null,
+        bot_acceso4_url: null,
+        bot_acceso4_masked_url: null,
       },
     });
   });
