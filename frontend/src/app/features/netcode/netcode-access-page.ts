@@ -1,5 +1,6 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Subscription } from 'rxjs';
 import {
   LucideArrowLeft,
   LucideCirclePlay,
@@ -15,6 +16,7 @@ import {
 
 import {
   NetcodeApi,
+  NetcodeSearchResponse,
   NetcodeValidationStep,
   NetflixProfileValidationResponse,
   Tutorial,
@@ -24,6 +26,7 @@ import Swal from 'sweetalert2';
 
 type AccessStep = 'whatsapp' | 'nombre' | 'pin' | 'account';
 type ViewState = 'access' | 'scan' | 'result';
+type SearchResultType = 'codigo' | 'link' | 'login';
 
 const MAX_TIME = 60;
 const POLL_MS = 4000;
@@ -48,7 +51,7 @@ const MAX_SEARCH_ATTEMPTS = 2;
   templateUrl: './netcode-access-page.html',
   styleUrl: './netcode-codes-page.css',
 })
-export class NetcodeAccessPage {
+export class NetcodeAccessPage implements OnDestroy {
   private readonly api = inject(NetcodeApi);
 
   readonly viewState = signal<ViewState>('access');
@@ -67,7 +70,9 @@ export class NetcodeAccessPage {
   readonly timeLeft = signal(MAX_TIME);
   readonly scanStatus = signal('Buscando correo reciente...');
   readonly resultValue = signal('');
-  readonly resultType = signal('');
+  readonly resultType = signal<SearchResultType | ''>('');
+  readonly resultEmail = signal('');
+  readonly resultReceivedAt = signal('');
   readonly resultSecondsLeft = signal(0);
   readonly resultExpiresAt = signal('');
   readonly searchAttempt = signal(0);
@@ -75,11 +80,15 @@ export class NetcodeAccessPage {
   readonly isSearching = signal(false);
 
   private countdown: number | null = null;
-  private polling: number | null = null;
+  private pollingTimer: number | null = null;
   private resultValidityCountdown: number | null = null;
+  private pollingRequest: Subscription | null = null;
+  private activeSearch: { accountId: number | null; email: string } | null = null;
   private successfulPollInCurrentSearch = false;
 
-  readonly resultIsLink = computed(() => /^https?:\/\//i.test(this.resultValue()));
+  readonly resultIsLink = computed(() => this.resultType() === 'link');
+  readonly resultIsCode = computed(() => this.resultType() === 'codigo');
+  readonly resultIsLogin = computed(() => this.resultType() === 'login');
   readonly accessCodeBotUrl = computed(() => this.account()?.cuenta?.bot_acceso4_masked_url || '');
   readonly resultValidityLabel = computed(() => this.formatSeconds(this.resultSecondsLeft()));
   readonly searchAttemptLabel = computed(() => `Busqueda ${Math.max(this.searchAttempt(), 1)} de ${MAX_SEARCH_ATTEMPTS}`);
@@ -91,12 +100,30 @@ export class NetcodeAccessPage {
       this.searchAttempt() > 0 &&
       this.searchAttempt() < MAX_SEARCH_ATTEMPTS
   );
+  readonly resultTitle = computed(() => {
+    if (this.resultIsLink()) return 'LINK ENCONTRADO';
+    if (this.resultIsLogin()) return 'LOGIN ENCONTRADO';
+
+    return 'CODIGO ENCONTRADO';
+  });
+  readonly resultPrimaryActionLabel = computed(() => {
+    if (this.resultIsLink()) return 'ABRIR LINK';
+    if (this.resultIsLogin()) return 'COPIAR LOGIN';
+
+    return 'COPIAR CODIGO';
+  });
+  readonly resultSecondaryActionLabel = computed(() => (this.resultIsLink() ? 'COPIAR LINK' : 'NUEVA BUSQUEDA'));
 
   constructor() {
     this.api.tutorials().subscribe({
       next: (tutorials) => this.tutorials.set(tutorials),
       error: () => this.tutorials.set({}),
     });
+  }
+
+  ngOnDestroy(): void {
+    this.stop();
+    this.stopResultValidityCountdown();
   }
 
   validate(step: NetcodeValidationStep): void {
@@ -146,6 +173,7 @@ export class NetcodeAccessPage {
         if (step === 'pin') {
           this.account.set(data);
           this.step.set('account');
+          this.resetCodeSearchState(true);
         }
       },
       error: (error) => {
@@ -168,27 +196,29 @@ export class NetcodeAccessPage {
       return;
     }
 
-    this.api.validateAccess({
-      step: 'cliente_acceso',
-      cliente_acceso_usuario: access,
-      pin,
-    }).subscribe({
-      next: (data) => {
-        if (data.status !== 'success') {
-          this.showToast(data.message || 'Acceso incorrecto.');
-          return;
-        }
+    this.api
+      .validateAccess({
+        step: 'cliente_acceso',
+        cliente_acceso_usuario: access,
+        pin,
+      })
+      .subscribe({
+        next: (data) => {
+          if (data.status !== 'success') {
+            this.showToast(data.message || 'Acceso incorrecto.');
+            return;
+          }
 
-        this.account.set(data);
-        this.step.set('account');
-        this.showToast('Validado');
-        this.resetCodeSearchState(true);
-        window.setTimeout(() => this.startAccessCodeSearch(false), 200);
-      },
-      error: (error) => {
-        this.showError('Validacion fallida', error?.error?.message || 'Acceso incorrecto.');
-      },
-    });
+          this.account.set(data);
+          this.step.set('account');
+          this.showToast('Validado');
+          this.resetCodeSearchState(true);
+          window.setTimeout(() => this.startAccessCodeSearch(false), 200);
+        },
+        error: (error) => {
+          this.showError('Validacion fallida', error?.error?.message || 'Acceso incorrecto.');
+        },
+      });
   }
 
   updatePin(value: string): void {
@@ -204,7 +234,9 @@ export class NetcodeAccessPage {
   }
 
   async startAccessCodeSearch(confirmBeforeSearch = true): Promise<void> {
-    const email = this.account()?.cuenta?.email;
+    const accountId = this.account()?.cuenta?.id ?? null;
+    const email = this.account()?.cuenta?.email || '';
+
     if (!email) {
       this.showToast('Primero valida WhatsApp, nombre y PIN');
       return;
@@ -223,10 +255,10 @@ export class NetcodeAccessPage {
         title: hasExclusiveBot ? 'Bot exclusivo Netflix' : 'Buscar codigo',
         text: hasExclusiveBot
           ? 'Esta cuenta usa un bot exclusivo para pedir el codigo de acceso. Abre el bot si aun no pediste el codigo y luego inicia la busqueda.'
-          : 'Confirma que Netflix ya pidio el codigo de login.',
+          : 'Confirma que Netflix ya pidio el codigo, link o login de inicio de sesion.',
         icon: 'question',
         showCancelButton: true,
-        confirmButtonText: hasExclusiveBot ? 'Ya pedi el codigo' : 'Buscar codigo',
+        confirmButtonText: hasExclusiveBot ? 'Ya pedi el acceso' : 'Buscar acceso',
         denyButtonText: hasExclusiveBot ? 'Abrir bot exclusivo' : undefined,
         showDenyButton: hasExclusiveBot,
         cancelButtonText: 'Cancelar',
@@ -242,50 +274,20 @@ export class NetcodeAccessPage {
       if (!accepted.isConfirmed) return;
     }
 
-    this.startSearch(email);
+    this.startSearch(accountId, email);
   }
 
   retrySearch(): void {
     if (!this.canRetrySearch()) return;
 
-    const email = this.account()?.cuenta?.email;
+    const accountId = this.account()?.cuenta?.id ?? null;
+    const email = this.account()?.cuenta?.email || '';
     if (!email) {
       this.showToast('Primero valida WhatsApp, nombre y PIN');
       return;
     }
 
-    this.startSearch(email);
-  }
-
-  private startSearch(email: string): void {
-    this.stop();
-    this.successfulPollInCurrentSearch = false;
-    this.searchAttempt.update((attempt) => Math.min(attempt + 1, MAX_SEARCH_ATTEMPTS));
-    this.searchFinishedWithoutResult.set(false);
-    this.isSearching.set(true);
-    this.resultValue.set('');
-    this.resultType.set('');
-    this.stopResultValidityCountdown();
-    this.timeLeft.set(MAX_TIME);
-    this.scanStatus.set('Buscando inicio sesion codigo 4 digitos...');
-    this.viewState.set('scan');
-
-    void Swal.fire({
-      title: 'Buscando codigo...',
-      text: 'Revisando correos recientes...',
-      allowOutsideClick: false,
-      allowEscapeKey: false,
-      showConfirmButton: false,
-      background: '#111426',
-      color: '#fff',
-      didOpen: () => Swal.showLoading(),
-      timer: 1300,
-    });
-
-    this.countdown = window.setInterval(() => this.tick(), 1000);
-    this.polling = window.setInterval(() => this.checkServer(email), POLL_MS);
-    this.tick();
-    this.checkServer(email);
+    this.startSearch(accountId, email);
   }
 
   cancelSearch(): void {
@@ -303,18 +305,24 @@ export class NetcodeAccessPage {
     this.step.set('account');
   }
 
-  copyOrOpen(): void {
-    const value = this.resultValue();
-    if (!value) return;
+  async runPrimaryResultAction(): Promise<void> {
+    if (!this.resultValue()) return;
+
     if (this.resultIsLink()) {
-      window.open(value, '_blank', 'noopener,noreferrer');
+      window.open(this.resultValue(), '_blank', 'noopener,noreferrer');
       return;
     }
 
-    navigator.clipboard
-      ?.writeText(value)
-      .then(() => this.showToast('Copiado'))
-      .catch(() => this.showCodeFound(value));
+    await this.copyToClipboard(this.resultValue(), this.resultIsLogin() ? 'Login copiado' : 'Codigo copiado');
+  }
+
+  async runSecondaryResultAction(): Promise<void> {
+    if (this.resultIsLink()) {
+      await this.copyToClipboard(this.resultValue(), 'Link copiado');
+      return;
+    }
+
+    this.resetResult();
   }
 
   openAccessCodeBot(): void {
@@ -340,31 +348,83 @@ export class NetcodeAccessPage {
     return used ? `Intentos restantes: ${Math.max(3 - used, 0)}` : '';
   }
 
+  private startSearch(accountId: number | null, email: string): void {
+    this.stop();
+    this.activeSearch = {
+      accountId,
+      email,
+    };
+    this.successfulPollInCurrentSearch = false;
+    this.searchAttempt.update((attempt) => Math.min(attempt + 1, MAX_SEARCH_ATTEMPTS));
+    this.searchFinishedWithoutResult.set(false);
+    this.isSearching.set(true);
+    this.resultValue.set('');
+    this.resultType.set('');
+    this.resultEmail.set('');
+    this.resultReceivedAt.set('');
+    this.stopResultValidityCountdown();
+    this.timeLeft.set(MAX_TIME);
+    this.scanStatus.set('Buscando codigo, link o login reciente...');
+    this.viewState.set('scan');
+
+    void Swal.fire({
+      title: 'Buscando acceso...',
+      text: 'Revisando el ultimo correo valido de la cuenta seleccionada...',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      background: '#111426',
+      color: '#fff',
+      didOpen: () => Swal.showLoading(),
+      timer: 1300,
+    });
+
+    this.countdown = window.setInterval(() => this.tick(), 1000);
+    this.checkServer();
+  }
+
   private failed(step: NetcodeValidationStep, message: string): void {
     const key = step as 'whatsapp' | 'nombre' | 'pin';
     this.attempts.update((current) => ({ ...current, [key]: current[key] + 1 }));
     this.showError('Validacion fallida', message);
   }
 
-  private checkServer(email: string): void {
-    this.api.searchEmail(email, 'acceso4').subscribe({
-      next: (data) => {
+  private checkServer(): void {
+    if (!this.activeSearch || this.pollingRequest || !this.isSearching()) {
+      return;
+    }
+
+    const payload = this.activeSearch.accountId
+      ? { subject: 'acceso4' as const, account_id: this.activeSearch.accountId }
+      : { subject: 'acceso4' as const, email: this.activeSearch.email };
+
+    const request = this.api.searchEmail(payload).subscribe({
+      next: async (data) => {
+        this.pollingRequest = null;
         this.successfulPollInCurrentSearch = true;
-        if (data.status === 'success' && data.valor_extraido) {
+
+        const result = this.normalizeSearchResult(data);
+        if (result !== null) {
           this.stop();
-          const value = String(data.valor_extraido).trim();
-          const secondsLeft = Math.max(0, Number(data.seconds_remaining ?? 420));
-          this.resultValue.set(value);
-          this.resultType.set(data.tipo || '');
-          this.resultExpiresAt.set(data.expires_at || '');
-          this.startResultValidityCountdown(secondsLeft);
+          this.resultValue.set(result.value);
+          this.resultType.set(result.type);
+          this.resultEmail.set(result.email);
+          this.resultReceivedAt.set(result.receivedAt);
+          this.resultExpiresAt.set(result.expiresAt);
+          this.startResultValidityCountdown(result.secondsLeft);
           this.searchFinishedWithoutResult.set(false);
           this.isSearching.set(false);
           this.viewState.set('result');
-          void this.showCodeFound(value, secondsLeft);
+          await this.showSearchResult(result.type, result.value, result.secondsLeft);
+          return;
+        }
+
+        if (this.isSearching()) {
+          this.scheduleNextPoll();
         }
       },
-      error: async () => {
+      error: async (error) => {
+        this.pollingRequest = null;
         this.stop();
         this.isSearching.set(false);
         this.searchFinishedWithoutResult.set(false);
@@ -373,18 +433,58 @@ export class NetcodeAccessPage {
           this.searchAttempt.update((attempt) => Math.max(attempt - 1, 0));
         }
 
-        await this.showError('Error de conexion', 'No pudimos consultar los codigos. Intentalo nuevamente.');
+        await this.showError(
+          'Error de conexion',
+          error?.error?.message || 'No pudimos consultar el ultimo acceso de la cuenta.'
+        );
         this.viewState.set('access');
         this.step.set('account');
       },
     });
+
+    this.pollingRequest = request.closed ? null : request;
+  }
+
+  private scheduleNextPoll(): void {
+    if (!this.activeSearch || !this.isSearching()) {
+      return;
+    }
+
+    if (this.pollingTimer) {
+      window.clearTimeout(this.pollingTimer);
+    }
+
+    this.pollingTimer = window.setTimeout(() => {
+      this.pollingTimer = null;
+      this.checkServer();
+    }, POLL_MS);
+  }
+
+  private normalizeSearchResult(
+    data: NetcodeSearchResponse
+  ): { type: SearchResultType; value: string; email: string; receivedAt: string; expiresAt: string; secondsLeft: number } | null {
+    const value = String(data.value ?? data.valor_extraido ?? '').trim();
+    const type = (data.type ?? data.tipo ?? '') as SearchResultType | '';
+
+    if (data.status !== 'success' || !value || !type) {
+      return null;
+    }
+
+    return {
+      type,
+      value,
+      email: data.email || '',
+      receivedAt: data.received_at || data.fecha || '',
+      expiresAt: data.expires_at || '',
+      secondsLeft: Math.max(0, Number(data.seconds_remaining ?? 420)),
+    };
   }
 
   private tick(): void {
     const current = this.timeLeft();
     this.timeLeft.set(Math.max(current, 0));
-    if (current === 30) this.scanStatus.set('Revisando correos recientes...');
-    if (current === 12) this.scanStatus.set('Ultima busqueda...');
+    if (current === 30) this.scanStatus.set('Revisando el ultimo correo valido de la cuenta...');
+    if (current === 12) this.scanStatus.set('Ultima busqueda de este intento...');
     if (current <= 0) {
       this.stop();
       this.isSearching.set(false);
@@ -399,14 +499,19 @@ export class NetcodeAccessPage {
 
   private stop(): void {
     if (this.countdown) window.clearInterval(this.countdown);
-    if (this.polling) window.clearInterval(this.polling);
+    if (this.pollingTimer) window.clearTimeout(this.pollingTimer);
+    this.pollingRequest?.unsubscribe();
     this.countdown = null;
-    this.polling = null;
+    this.pollingTimer = null;
+    this.pollingRequest = null;
+    this.activeSearch = null;
   }
 
   private resetCodeSearchState(resetAttempts: boolean): void {
     this.resultValue.set('');
     this.resultType.set('');
+    this.resultEmail.set('');
+    this.resultReceivedAt.set('');
     this.resultSecondsLeft.set(0);
     this.resultExpiresAt.set('');
     this.stopResultValidityCountdown();
@@ -421,7 +526,7 @@ export class NetcodeAccessPage {
   private async handleSearchTimeout(): Promise<void> {
     if (this.searchAttempt() < MAX_SEARCH_ATTEMPTS) {
       const response = await Swal.fire({
-        title: 'No encontramos el codigo',
+        title: 'No encontramos un acceso valido',
         text: 'Puedes realizar una segunda busqueda.',
         icon: 'warning',
         showCancelButton: true,
@@ -433,7 +538,6 @@ export class NetcodeAccessPage {
 
       if (response.isConfirmed) {
         this.retrySearch();
-        return;
       }
 
       return;
@@ -444,7 +548,7 @@ export class NetcodeAccessPage {
 
   private async showFinalNotFound(): Promise<void> {
     await Swal.fire({
-      title: 'No encontramos un codigo valido',
+      title: 'No encontramos un acceso valido',
       text: 'Se realizaron las 2 busquedas disponibles.',
       icon: 'error',
       confirmButtonText: 'Entendido',
@@ -453,19 +557,27 @@ export class NetcodeAccessPage {
     });
   }
 
-  private async showCodeFound(value: string, secondsLeft = this.resultSecondsLeft()): Promise<void> {
+  private async showSearchResult(type: SearchResultType, value: string, secondsLeft: number): Promise<void> {
     let modalSeconds = Math.max(0, secondsLeft);
     let modalInterval: number | null = null;
 
+    const title = type === 'link' ? 'LINK ENCONTRADO' : type === 'login' ? 'LOGIN ENCONTRADO' : 'CODIGO ENCONTRADO';
+    const confirmButtonText = type === 'link' ? 'Abrir link' : type === 'login' ? 'Copiar login' : 'Copiar codigo';
+    const showDenyButton = type === 'link';
+
     const response = await Swal.fire({
-      title: 'Codigo encontrado',
+      title,
       html: `
-        <div style="font-size:44px;font-weight:900;letter-spacing:.18em;color:#35f7a4">${this.escapeHtml(value)}</div>
+        <div style="font-size:${type === 'codigo' ? '44px' : '18px'};font-weight:900;letter-spacing:${type === 'codigo' ? '.18em' : '0'};color:#35f7a4;word-break:break-word">
+          ${this.escapeHtml(value)}
+        </div>
         <div style="margin-top:12px;color:#ffd166;font-weight:900">Vigente por <span id="swal-code-timer">${this.formatSeconds(modalSeconds)}</span></div>
-        <div style="margin-top:6px;color:rgba(255,255,255,.68);font-size:13px">El codigo o link dura 7 minutos desde que fue guardado.</div>
+        <div style="margin-top:6px;color:rgba(255,255,255,.68);font-size:13px">El resultado dura 7 minutos desde que fue procesado.</div>
       `,
       icon: 'success',
-      confirmButtonText: this.resultIsLink() ? 'Cerrar' : 'Copiar codigo',
+      confirmButtonText,
+      denyButtonText: showDenyButton ? 'Copiar link' : undefined,
+      showDenyButton,
       background: '#111426',
       color: '#fff',
       didOpen: () => {
@@ -484,9 +596,16 @@ export class NetcodeAccessPage {
       },
     });
 
-    if (response.isConfirmed && !this.resultIsLink()) {
-      await navigator.clipboard?.writeText(value).catch(() => undefined);
-      this.showToast('Copiado');
+    if (response.isConfirmed) {
+      if (type === 'link') {
+        window.open(value, '_blank', 'noopener,noreferrer');
+      } else {
+        await this.copyToClipboard(value, type === 'login' ? 'Login copiado' : 'Codigo copiado');
+      }
+    }
+
+    if (response.isDenied && type === 'link') {
+      await this.copyToClipboard(value, 'Link copiado');
     }
   }
 
@@ -527,8 +646,12 @@ export class NetcodeAccessPage {
 
   private formatSeconds(seconds: number): string {
     const safeSeconds = Math.max(0, Math.floor(seconds));
-    const minutes = Math.floor(safeSeconds / 60).toString().padStart(2, '0');
-    const remainder = (safeSeconds % 60).toString().padStart(2, '0');
+    const minutes = Math.floor(safeSeconds / 60)
+      .toString()
+      .padStart(2, '0');
+    const remainder = (safeSeconds % 60)
+      .toString()
+      .padStart(2, '0');
 
     return `${minutes}:${remainder}`;
   }
@@ -579,9 +702,9 @@ export class NetcodeAccessPage {
         title: 'Tutorial codigo de acceso 4 digitos',
         steps: [
           'Valida WhatsApp, perfil y PIN.',
-          'Confirma que Netflix ya pidio el codigo de inicio de sesion.',
+          'Confirma que Netflix ya pidio el codigo, link o login de inicio de sesion.',
           'Presiona Buscar codigo de 4 digitos.',
-          'Copia el codigo antes de que venza.',
+          'Copia o abre el resultado antes de que venza.',
         ],
         media_url: null,
         media_type: null,
@@ -602,6 +725,15 @@ export class NetcodeAccessPage {
 
   private digits(value: string): string {
     return value.replace(/\D+/g, '');
+  }
+
+  private async copyToClipboard(value: string, successMessage: string): Promise<void> {
+    try {
+      await navigator.clipboard?.writeText(value);
+      this.showToast(successMessage);
+    } catch {
+      this.showToast(value);
+    }
   }
 
   private showToast(message: string): void {

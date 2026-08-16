@@ -13,9 +13,14 @@ export interface Tutorial {
 
 export interface NetcodeSearchResponse {
   status: 'success' | 'not_found' | 'error';
+  found?: boolean;
   message: string;
+  type?: 'codigo' | 'link' | 'login';
+  value?: string;
+  email?: string;
+  received_at?: string | null;
   valor_extraido?: string;
-  tipo?: 'codigo' | 'link';
+  tipo?: 'codigo' | 'link' | 'login';
   fecha?: string | null;
   processed_at?: string | null;
   expires_at?: string | null;
@@ -23,6 +28,8 @@ export interface NetcodeSearchResponse {
   valid_for_minutes?: number;
   debug_id?: number;
   asunto_found?: string;
+  account_id?: number | null;
+  authorized_profile_ids?: number[];
 }
 
 export type NetcodeValidationStep = 'whatsapp' | 'nombre' | 'pin' | 'full' | 'cliente_acceso';
@@ -32,6 +39,7 @@ export interface NetflixProfileValidationResponse {
   step: NetcodeValidationStep;
   message: string;
   perfil?: {
+    id?: number | null;
     nombre: string | null;
     pin: string | null;
     numero: string | null;
@@ -54,6 +62,7 @@ export interface NetflixProfileValidationResponse {
     fila_excel: number | null;
   }>;
   cuenta?: {
+    id?: number | null;
     email: string | null;
     password: string | null;
     producto: string | null;
@@ -81,10 +90,15 @@ export class NetcodeApi {
       .pipe(map((response) => response.data));
   }
 
-  searchEmail(email: string, subject: NetcodeSearchSubject): Observable<NetcodeSearchResponse> {
+  searchEmail(payload: {
+    subject: NetcodeSearchSubject;
+    email?: string;
+    account_id?: number;
+  }): Observable<NetcodeSearchResponse> {
     return this.http.post<NetcodeSearchResponse>('/api/v1/netcode/buscar-email', {
-      email,
-      subject,
+      email: payload.email,
+      account_id: payload.account_id,
+      subject: payload.subject,
     });
   }
 

@@ -165,6 +165,7 @@ class ApiNetflixProfileController extends Controller
             'step' => $step,
             'message' => 'Cuenta validada.',
             'perfil' => [
+                'id' => $profile->id,
                 'nombre' => $profile->nombre_perfil,
                 'pin' => $profile->pin,
                 'numero' => $profile->numero,
@@ -180,6 +181,7 @@ class ApiNetflixProfileController extends Controller
                 'cliente_acceso_usuario' => $profile->cliente_acceso_usuario,
             ],
             'cuenta' => [
+                'id' => $profile->cuenta->id,
                 'email' => $profile->cuenta->email,
                 'password' => $profile->cuenta->password,
                 'producto' => $profile->cuenta->producto?->nombre,

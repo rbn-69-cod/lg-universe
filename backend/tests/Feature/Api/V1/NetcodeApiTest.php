@@ -33,8 +33,11 @@ it('searches extracted netcode email values through the versioned api', function
     ])
         ->assertOk()
         ->assertJsonPath('status', 'success')
+        ->assertJsonPath('found', true)
         ->assertJsonPath('valor_extraido', 'https://netflix.com/account/update-primary-location')
-        ->assertJsonPath('tipo', 'link');
+        ->assertJsonPath('tipo', 'link')
+        ->assertJsonPath('type', 'link')
+        ->assertJsonPath('email', 'cliente@example.com');
 });
 
 it('finds a 4 digit login code by processed time even when received time is older', function () {
@@ -56,6 +59,7 @@ it('finds a 4 digit login code by processed time even when received time is olde
     ])
         ->assertOk()
         ->assertJsonPath('status', 'success')
+        ->assertJsonPath('found', true)
         ->assertJsonPath('valor_extraido', '1234')
         ->assertJsonPath('tipo', 'codigo')
         ->assertJsonPath('valid_for_minutes', 7)
@@ -66,7 +70,7 @@ it('finds a 4 digit login code by processed time even when received time is olde
 it('does not expose account or table bot links through the public netcode search', function () {
     $product = Producto::query()->create([
         'nombre' => 'Netflix Premium',
-        'slug' => 'netflix-premium',
+        'slug' => 'netflix-premium-public-bot',
         'precio' => 15,
         'tipo' => 'perfil',
         'perfiles_por_cuenta' => 5,
@@ -93,13 +97,352 @@ it('does not expose account or table bot links through the public netcode search
         'subject' => 'hogar',
     ])
         ->assertOk()
-        ->assertJsonPath('status', 'not_found');
+        ->assertJsonPath('status', 'not_found')
+        ->assertJsonPath('found', false);
+});
+
+it('returns the latest valid email only for the selected account', function () {
+    $product = Producto::query()->create([
+        'nombre' => 'Netflix Premium',
+        'slug' => 'netflix-premium-latest-account',
+        'precio' => 15,
+        'tipo' => 'perfil',
+        'perfiles_por_cuenta' => 5,
+        'duracion_dias' => 30,
+        'activo' => true,
+    ]);
+
+    $accountA = Cuenta::query()->create([
+        'producto_id' => $product->id,
+        'email' => 'cuenta-a@example.com',
+        'password' => 'secret',
+        'perfiles_total' => 5,
+        'perfiles_usados' => 2,
+        'activo' => true,
+        'source_platforma' => 'Netflix Premium',
+        'source_hoja_excel' => 'NETFLIX',
+        'source_row' => 3,
+    ]);
+
+    $accountB = Cuenta::query()->create([
+        'producto_id' => $product->id,
+        'email' => 'cuenta-b@example.com',
+        'password' => 'secret',
+        'perfiles_total' => 5,
+        'perfiles_usados' => 1,
+        'activo' => true,
+        'source_platforma' => 'Netflix Premium',
+        'source_hoja_excel' => 'NETFLIX',
+        'source_row' => 4,
+    ]);
+
+    Perfil::query()->create([
+        'cuenta_id' => $accountA->id,
+        'nombre_perfil' => 'ALFA',
+        'pin' => '1111',
+        'numero' => '900000001',
+        'cliente_acceso_usuario' => 'alfa-a',
+        'vendedor' => 'IGARLOS',
+        'costo' => 15,
+        'fecha_inicio' => now(),
+        'fecha_fin' => now()->addMonth(),
+        'estado_excel' => 'Activo',
+        'ocupado' => true,
+        'source_platforma' => 'Netflix Premium',
+        'source_hoja_excel' => 'NETFLIX',
+        'source_row' => 3,
+    ]);
+
+    Perfil::query()->create([
+        'cuenta_id' => $accountA->id,
+        'nombre_perfil' => 'BETA',
+        'pin' => '2222',
+        'numero' => '900000002',
+        'cliente_acceso_usuario' => 'beta-a',
+        'vendedor' => 'IGARLOS',
+        'costo' => 15,
+        'fecha_inicio' => now(),
+        'fecha_fin' => now()->addMonth(),
+        'estado_excel' => 'Activo',
+        'ocupado' => true,
+        'source_platforma' => 'Netflix Premium',
+        'source_hoja_excel' => 'NETFLIX',
+        'source_row' => 4,
+    ]);
+
+    Perfil::query()->create([
+        'cuenta_id' => $accountB->id,
+        'nombre_perfil' => 'GAMMA',
+        'pin' => '3333',
+        'numero' => '900000003',
+        'cliente_acceso_usuario' => 'gamma-b',
+        'vendedor' => 'IGARLOS',
+        'costo' => 15,
+        'fecha_inicio' => now(),
+        'fecha_fin' => now()->addMonth(),
+        'estado_excel' => 'Activo',
+        'ocupado' => true,
+        'source_platforma' => 'Netflix Premium',
+        'source_hoja_excel' => 'NETFLIX',
+        'source_row' => 5,
+    ]);
+
+    EmailPedido::query()->create([
+        'destinatario_original' => 'cuenta-a@example.com',
+        'asunto' => 'Netflix: tu codigo',
+        'remitente' => 'Netflix',
+        'fecha_recibido' => now()->subMinutes(6),
+        'cuerpo_html' => 'Ingresa este codigo',
+        'datos_extraidos' => json_encode(['1111']),
+        'fecha_procesado_db' => now()->subMinutes(6),
+    ]);
+
+    EmailPedido::query()->create([
+        'destinatario_original' => 'cuenta-b@example.com',
+        'asunto' => 'Netflix: tu codigo',
+        'remitente' => 'Netflix',
+        'fecha_recibido' => now()->subMinutes(3),
+        'cuerpo_html' => 'Ingresa este codigo',
+        'datos_extraidos' => json_encode(['9999']),
+        'fecha_procesado_db' => now()->subMinutes(3),
+    ]);
+
+    EmailPedido::query()->create([
+        'destinatario_original' => 'cuenta-a@example.com',
+        'asunto' => 'Netflix: inicia sesion',
+        'remitente' => 'Netflix',
+        'fecha_recibido' => now()->subMinute(),
+        'cuerpo_html' => 'Abre este link',
+        'datos_extraidos' => json_encode(['https://www.netflix.com/login/token-demo']),
+        'fecha_procesado_db' => now()->subMinute(),
+    ]);
+
+    $this->postJson('/api/v1/netcode/buscar-email', [
+        'account_id' => $accountA->id,
+        'email' => 'otro@example.com',
+        'subject' => 'acceso4',
+    ])
+        ->assertOk()
+        ->assertJsonPath('status', 'success')
+        ->assertJsonPath('found', true)
+        ->assertJsonPath('account_id', $accountA->id)
+        ->assertJsonPath('email', 'cuenta-a@example.com')
+        ->assertJsonPath('type', 'link')
+        ->assertJsonPath('value', 'https://www.netflix.com/login/token-demo');
+});
+
+it('does not return another account email when searching a selected account', function () {
+    $product = Producto::query()->create([
+        'nombre' => 'Netflix Premium',
+        'slug' => 'netflix-premium-other-account',
+        'precio' => 15,
+        'tipo' => 'perfil',
+        'perfiles_por_cuenta' => 5,
+        'duracion_dias' => 30,
+        'activo' => true,
+    ]);
+
+    $accountA = Cuenta::query()->create([
+        'producto_id' => $product->id,
+        'email' => 'cuenta-a@example.com',
+        'password' => 'secret',
+        'perfiles_total' => 5,
+        'perfiles_usados' => 1,
+        'activo' => true,
+        'source_platforma' => 'Netflix Premium',
+        'source_hoja_excel' => 'NETFLIX',
+        'source_row' => 1,
+    ]);
+
+    $accountB = Cuenta::query()->create([
+        'producto_id' => $product->id,
+        'email' => 'cuenta-b@example.com',
+        'password' => 'secret',
+        'perfiles_total' => 5,
+        'perfiles_usados' => 1,
+        'activo' => true,
+        'source_platforma' => 'Netflix Premium',
+        'source_hoja_excel' => 'NETFLIX',
+        'source_row' => 2,
+    ]);
+
+    Perfil::query()->create([
+        'cuenta_id' => $accountA->id,
+        'nombre_perfil' => 'ALFA',
+        'pin' => '1111',
+        'numero' => '900000001',
+        'cliente_acceso_usuario' => 'alfa-a',
+        'vendedor' => 'IGARLOS',
+        'costo' => 15,
+        'fecha_inicio' => now(),
+        'fecha_fin' => now()->addMonth(),
+        'estado_excel' => 'Activo',
+        'ocupado' => true,
+        'source_platforma' => 'Netflix Premium',
+        'source_hoja_excel' => 'NETFLIX',
+        'source_row' => 1,
+    ]);
+
+    Perfil::query()->create([
+        'cuenta_id' => $accountB->id,
+        'nombre_perfil' => 'BETA',
+        'pin' => '2222',
+        'numero' => '900000002',
+        'cliente_acceso_usuario' => 'beta-b',
+        'vendedor' => 'IGARLOS',
+        'costo' => 15,
+        'fecha_inicio' => now(),
+        'fecha_fin' => now()->addMonth(),
+        'estado_excel' => 'Activo',
+        'ocupado' => true,
+        'source_platforma' => 'Netflix Premium',
+        'source_hoja_excel' => 'NETFLIX',
+        'source_row' => 2,
+    ]);
+
+    EmailPedido::query()->create([
+        'destinatario_original' => 'cuenta-b@example.com',
+        'asunto' => 'Netflix: tu codigo',
+        'remitente' => 'Netflix',
+        'fecha_recibido' => now()->subMinutes(2),
+        'cuerpo_html' => 'Ingresa este codigo',
+        'datos_extraidos' => json_encode(['5555']),
+        'fecha_procesado_db' => now()->subMinutes(2),
+    ]);
+
+    $this->postJson('/api/v1/netcode/buscar-email', [
+        'account_id' => $accountA->id,
+        'subject' => 'acceso4',
+    ])
+        ->assertOk()
+        ->assertJsonPath('status', 'not_found')
+        ->assertJsonPath('found', false);
+});
+
+it('does not return expired results older than seven minutes', function () {
+    $product = Producto::query()->create([
+        'nombre' => 'Netflix Premium',
+        'slug' => 'netflix-premium-expired',
+        'precio' => 15,
+        'tipo' => 'perfil',
+        'perfiles_por_cuenta' => 5,
+        'duracion_dias' => 30,
+        'activo' => true,
+    ]);
+
+    $account = Cuenta::query()->create([
+        'producto_id' => $product->id,
+        'email' => 'expira@example.com',
+        'password' => 'secret',
+        'perfiles_total' => 5,
+        'perfiles_usados' => 1,
+        'activo' => true,
+        'source_platforma' => 'Netflix Premium',
+        'source_hoja_excel' => 'NETFLIX',
+        'source_row' => 8,
+    ]);
+
+    Perfil::query()->create([
+        'cuenta_id' => $account->id,
+        'nombre_perfil' => 'ALFA',
+        'pin' => '1111',
+        'numero' => '900000001',
+        'cliente_acceso_usuario' => 'alfa-expira',
+        'vendedor' => 'IGARLOS',
+        'costo' => 15,
+        'fecha_inicio' => now(),
+        'fecha_fin' => now()->addMonth(),
+        'estado_excel' => 'Activo',
+        'ocupado' => true,
+        'source_platforma' => 'Netflix Premium',
+        'source_hoja_excel' => 'NETFLIX',
+        'source_row' => 8,
+    ]);
+
+    EmailPedido::query()->create([
+        'destinatario_original' => 'expira@example.com',
+        'asunto' => 'Netflix: tu codigo',
+        'remitente' => 'Netflix',
+        'fecha_recibido' => now()->subMinutes(8),
+        'cuerpo_html' => 'Ingresa este codigo',
+        'datos_extraidos' => json_encode(['1234']),
+        'fecha_procesado_db' => now()->subMinutes(8),
+    ]);
+
+    $this->postJson('/api/v1/netcode/buscar-email', [
+        'account_id' => $account->id,
+        'subject' => 'acceso4',
+    ])
+        ->assertOk()
+        ->assertJsonPath('status', 'not_found')
+        ->assertJsonPath('found', false);
+});
+
+it('returns results created six minutes ago inside the seven minute window', function () {
+    $product = Producto::query()->create([
+        'nombre' => 'Netflix Premium',
+        'slug' => 'netflix-premium-valid-window',
+        'precio' => 15,
+        'tipo' => 'perfil',
+        'perfiles_por_cuenta' => 5,
+        'duracion_dias' => 30,
+        'activo' => true,
+    ]);
+
+    $account = Cuenta::query()->create([
+        'producto_id' => $product->id,
+        'email' => 'vigente@example.com',
+        'password' => 'secret',
+        'perfiles_total' => 5,
+        'perfiles_usados' => 1,
+        'activo' => true,
+        'source_platforma' => 'Netflix Premium',
+        'source_hoja_excel' => 'NETFLIX',
+        'source_row' => 9,
+    ]);
+
+    Perfil::query()->create([
+        'cuenta_id' => $account->id,
+        'nombre_perfil' => 'ALFA',
+        'pin' => '1111',
+        'numero' => '900000001',
+        'cliente_acceso_usuario' => 'alfa-vigente',
+        'vendedor' => 'IGARLOS',
+        'costo' => 15,
+        'fecha_inicio' => now(),
+        'fecha_fin' => now()->addMonth(),
+        'estado_excel' => 'Activo',
+        'ocupado' => true,
+        'source_platforma' => 'Netflix Premium',
+        'source_hoja_excel' => 'NETFLIX',
+        'source_row' => 9,
+    ]);
+
+    EmailPedido::query()->create([
+        'destinatario_original' => 'vigente@example.com',
+        'asunto' => 'Netflix: tu codigo',
+        'remitente' => 'Netflix',
+        'fecha_recibido' => now()->subMinutes(6),
+        'cuerpo_html' => 'Ingresa este codigo',
+        'datos_extraidos' => json_encode(['4321']),
+        'fecha_procesado_db' => now()->subMinutes(6),
+    ]);
+
+    $this->postJson('/api/v1/netcode/buscar-email', [
+        'account_id' => $account->id,
+        'subject' => 'acceso4',
+    ])
+        ->assertOk()
+        ->assertJsonPath('status', 'success')
+        ->assertJsonPath('found', true)
+        ->assertJsonPath('type', 'codigo')
+        ->assertJsonPath('value', '4321');
 });
 
 it('validates netflix profile access through the versioned api', function () {
     $product = Producto::query()->create([
         'nombre' => 'Netflix Premium',
-        'slug' => 'netflix-premium',
+        'slug' => 'netflix-premium-validate-pin',
         'precio' => 15,
         'tipo' => 'perfil',
         'perfiles_por_cuenta' => 5,
@@ -144,14 +487,16 @@ it('validates netflix profile access through the versioned api', function () {
     ])
         ->assertOk()
         ->assertJsonPath('status', 'success')
+        ->assertJsonPath('cuenta.id', $account->id)
         ->assertJsonPath('cuenta.email', 'netflix@example.com')
+        ->assertJsonPath('perfil.id', fn ($id) => is_int($id) || ctype_digit((string) $id))
         ->assertJsonPath('perfil.nombre', 'RUBEN');
 });
 
 it('validates netflix profile access directly with the imported client access user', function () {
     $product = Producto::query()->create([
         'nombre' => 'Netflix Premium',
-        'slug' => 'netflix-premium',
+        'slug' => 'netflix-premium-client-access',
         'precio' => 15,
         'tipo' => 'perfil',
         'perfiles_por_cuenta' => 5,
@@ -213,6 +558,7 @@ it('validates netflix profile access directly with the imported client access us
         ->assertOk()
         ->assertJsonPath('status', 'success')
         ->assertJsonPath('step', 'cliente_acceso')
+        ->assertJsonPath('cuenta.id', $account->id)
         ->assertJsonPath('cuenta.email', 'directo@example.com')
         ->assertJsonPath('perfil.nombre', 'MANDI')
         ->assertJsonPath('perfil.cliente_acceso_usuario', 'TOKEN-X-123')

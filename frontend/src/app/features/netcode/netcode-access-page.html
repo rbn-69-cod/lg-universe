@@ -2,8 +2,8 @@
   <section class="panel">
     <div class="brand">
       <app-lg-monogram-logo />
-      <h1>INICIO SESION</h1>
-      <p>CODIGO DE 4 DIGITOS</p>
+      <h1>LG</h1>
+      <p>INICIO SESION</p>
       <div class="line"></div>
     </div>
 
@@ -199,25 +199,43 @@
     @if (viewState() === 'result') {
       <section class="result active">
         <div class="attempt-badge">{{ searchAttemptLabel() }}</div>
-        <div class="result-value" [class.code]="!resultIsLink()" [class.link]="resultIsLink()">{{ resultValue() }}</div>
+        <h2>{{ resultTitle() }}</h2>
+        <div class="result-value" [class.code]="resultIsCode()" [class.link]="resultIsLink()">{{ resultValue() }}</div>
         <div class="validity-timer" [class.expired]="resultSecondsLeft() <= 0">
           <span>{{ resultSecondsLeft() > 0 ? 'Vigente por' : 'Tiempo agotado' }}</span>
           <b>{{ resultValidityLabel() }}</b>
         </div>
-        <p>{{ resultIsLink() ? 'Abre el enlace cuanto antes.' : 'Copia el codigo y usalo antes de que venza.' }}</p>
+        <p>
+          @if (resultEmail()) {
+            Cuenta / correo: {{ resultEmail() }}
+          }
+          @if (resultReceivedAt()) {
+            <br />
+            Recibido: {{ resultReceivedAt() }}
+          }
+          @if (resultExpiresAt()) {
+            <br />
+            Expira: {{ resultExpiresAt() }}
+          }
+        </p>
         <div class="scan-actions">
-          <button class="ghost" type="button" (click)="copyOrOpen()">
+          <button class="ghost" type="button" (click)="runPrimaryResultAction()">
             @if (resultIsLink()) {
               <svg lucideExternalLink size="17" />
-              Abrir enlace
+              {{ resultPrimaryActionLabel() }}
             } @else {
               <svg lucideCopy size="17" />
-              Copiar codigo
+              {{ resultPrimaryActionLabel() }}
             }
           </button>
-          <button class="ghost" type="button" (click)="resetResult()">
-            <svg lucideRefreshCcw size="17" />
-            Nueva busqueda
+          <button class="ghost" type="button" (click)="runSecondaryResultAction()">
+            @if (resultIsLink()) {
+              <svg lucideCopy size="17" />
+              {{ resultSecondaryActionLabel() }}
+            } @else {
+              <svg lucideRefreshCcw size="17" />
+              {{ resultSecondaryActionLabel() }}
+            }
           </button>
         </div>
       </section>

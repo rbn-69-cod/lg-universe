@@ -210,7 +210,7 @@ export class NetcodeCodesPage {
   }
 
   private checkServer(mode: NetcodeSearchSubject): void {
-    this.api.searchEmail(this.email(), mode).subscribe({
+    this.api.searchEmail({ email: this.email(), subject: mode }).subscribe({
       next: (data) => {
         if (data.status === 'success' && data.valor_extraido) {
           this.showResult(String(data.valor_extraido), data.tipo || '');

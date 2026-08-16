@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Cuenta;
 use App\Models\EmailPedido;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Throwable;
 
 class ApiBuscarEmailController extends Controller
@@ -14,91 +16,75 @@ class ApiBuscarEmailController extends Controller
     public function buscar(Request $request)
     {
         try {
-            $request->validate([
-                'email' => ['required', 'email'],
+            $data = $request->validate([
+                'email' => ['nullable', 'email', 'required_without:account_id'],
+                'account_id' => ['nullable', 'integer', Rule::exists('cuentas', 'id')],
                 'subject' => ['required', 'in:temporal,hogar,acceso4'],
             ]);
 
-            $emailDestinatario = mb_strtolower(trim($request->email));
-            $tipoSolicitud = trim($request->subject);
+            $tipoSolicitud = trim((string) $data['subject']);
+            $account = null;
+            $authorizedRecipients = [];
+
+            if (! empty($data['account_id'])) {
+                $account = Cuenta::query()
+                    ->with('perfiles:id,cuenta_id,nombre_perfil,cliente_acceso_usuario')
+                    ->find((int) $data['account_id']);
+
+                $authorizedRecipients = $this->authorizedRecipientsForAccount($account);
+            } elseif (! empty($data['email'])) {
+                $authorizedRecipients = [mb_strtolower(trim((string) $data['email']))];
+            }
+
+            if ($authorizedRecipients === []) {
+                return $this->safeJsonResponse([
+                    'status' => 'not_found',
+                    'found' => false,
+                    'message' => 'La cuenta seleccionada no tiene correos autorizados para NetCode.',
+                ]);
+            }
+
             $validFrom = now()->subMinutes(self::CODE_TTL_MINUTES);
 
-            $query = EmailPedido::whereRaw('LOWER(destinatario_original) = ?', [$emailDestinatario])
-                ->where(function ($q) use ($validFrom) {
-                    $q->where('fecha_procesado_db', '>=', $validFrom)
+            $emailDataModel = EmailPedido::query()
+                ->where(function ($query) use ($authorizedRecipients) {
+                    foreach ($authorizedRecipients as $index => $recipient) {
+                        $method = $index === 0 ? 'whereRaw' : 'orWhereRaw';
+                        $query->{$method}('LOWER(destinatario_original) = ?', [$recipient]);
+                    }
+                })
+                ->where(function ($query) use ($validFrom) {
+                    $query->where('fecha_procesado_db', '>=', $validFrom)
                         ->orWhere(function ($fallback) use ($validFrom) {
                             $fallback->whereNull('fecha_procesado_db')
                                 ->where('fecha_recibido', '>=', $validFrom);
                         });
-                });
-
-            $query->where(function ($q) use ($tipoSolicitud) {
-                if ($tipoSolicitud === 'acceso4') {
-                    $this->applyKeywordFilters($q, array_merge(
-                        $this->configuredKeywords('temporal'),
-                        ['codigo', 'inicio de sesion', 'tu codigo de inicio', 'acceso', 'ingresa este codigo para iniciar sesion', 'codigo vence en 15 minutos']
-                    ));
-                    $q->orWhere('datos_extraidos', 'REGEXP', '^[0-9]{4}$');
-
-                    return;
-                }
-
-                if ($tipoSolicitud === 'temporal') {
-                    $this->applyKeywordFilters($q, array_merge(
-                        $this->configuredKeywords('temporal'),
-                        ['temporal', 'code', 'codigo', 'acceso']
-                    ));
-                    $q->orWhere('datos_extraidos', 'LIKE', 'http%')
-                        ->orWhere('datos_extraidos', 'REGEXP', '^[0-9]{4,8}$');
-
-                    return;
-                }
-
-                $this->applyKeywordFilters($q, array_merge(
-                    $this->configuredKeywords('hogar'),
-                    ['hogar', 'actualizar', 'primary', 'household']
-                ));
-                $q->orWhere('datos_extraidos', 'LIKE', '%update-primary-location%')
-                    ->orWhere('datos_extraidos', 'LIKE', '%travel/verify%');
-            });
-
-            $emailDataModel = $query->orderBy('fecha_procesado_db', 'desc')
+                })
+                ->orderBy('fecha_procesado_db', 'desc')
                 ->orderBy('fecha_recibido', 'desc')
                 ->orderBy('id', 'desc')
-                ->first();
+                ->get()
+                ->first(function (EmailPedido $email) use ($tipoSolicitud) {
+                    return $this->extractCandidate($email, $tipoSolicitud) !== null;
+                });
 
             if (! $emailDataModel) {
                 return $this->safeJsonResponse([
                     'status' => 'not_found',
+                    'found' => false,
                     'message' => 'No se encontro ningun correo reciente coincidente.',
                 ]);
             }
 
-            $valorFinal = $this->extractStoredValue($emailDataModel->datos_extraidos, $tipoSolicitud);
+            $candidate = $this->extractCandidate($emailDataModel, $tipoSolicitud);
 
-            if (! is_string($valorFinal) || trim($valorFinal) === '') {
+            if ($candidate === null) {
                 return $this->safeJsonResponse([
                     'status' => 'not_found',
-                    'message' => 'El correo existe, pero no tiene codigo o enlace extraido.',
+                    'found' => false,
+                    'message' => 'El correo existe, pero no tiene codigo, link o login valido.',
                     'debug_id' => $emailDataModel->id,
                 ]);
-            }
-
-            if ($tipoSolicitud === 'acceso4' && ! preg_match('/^\d{4}$/', $valorFinal)) {
-                return $this->safeJsonResponse([
-                    'status' => 'not_found',
-                    'message' => 'Se encontro correo, pero no contiene un codigo de 4 digitos.',
-                    'debug_id' => $emailDataModel->id,
-                ]);
-            }
-
-            $fechaFormat = null;
-            try {
-                $fechaFormat = $emailDataModel->fecha_recibido
-                    ? Carbon::parse($emailDataModel->fecha_recibido)->format('Y-m-d H:i:s')
-                    : null;
-            } catch (Throwable) {
-                $fechaFormat = null;
             }
 
             $validityStart = $this->validityStart($emailDataModel);
@@ -106,67 +92,107 @@ class ApiBuscarEmailController extends Controller
             $secondsRemaining = $expiresAt && $expiresAt->greaterThan(now())
                 ? (int) now()->diffInSeconds($expiresAt)
                 : 0;
+            $receivedAt = $this->formatDate($emailDataModel->fecha_recibido);
 
             return $this->safeJsonResponse([
                 'status' => 'success',
+                'found' => true,
                 'message' => 'Dato encontrado.',
-                'valor_extraido' => $valorFinal,
-                'tipo' => preg_match('/^\d{4}$/', $valorFinal) ? 'codigo' : 'link',
-                'fecha' => $fechaFormat,
+                'type' => $candidate['type'],
+                'value' => $candidate['value'],
+                'email' => $emailDataModel->destinatario_original,
+                'received_at' => $receivedAt,
+                'valor_extraido' => $candidate['value'],
+                'tipo' => $candidate['type'],
+                'fecha' => $receivedAt,
                 'processed_at' => $validityStart?->format('Y-m-d H:i:s'),
                 'expires_at' => $expiresAt?->format('Y-m-d H:i:s'),
                 'seconds_remaining' => $secondsRemaining,
                 'valid_for_minutes' => self::CODE_TTL_MINUTES,
                 'debug_id' => $emailDataModel->id,
                 'asunto_found' => $emailDataModel->asunto,
+                'account_id' => $account?->id,
+                'authorized_profile_ids' => $account?->perfiles?->pluck('id')->values()->all() ?? [],
             ]);
         } catch (Throwable $e) {
             return $this->safeJsonResponse([
                 'status' => 'error',
+                'found' => false,
                 'message' => 'Error interno buscando el correo.',
             ], 500);
         }
     }
 
-    private function extractStoredValue(?string $raw, string $tipoSolicitud): string
+    private function authorizedRecipientsForAccount(?Cuenta $account): array
     {
-        $raw = trim((string) $raw);
-        $decoded = json_decode($raw, true);
-
-        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded) && count($decoded) > 0) {
-            $values = array_values(array_filter(array_map(
-                fn ($value) => html_entity_decode(trim((string) $value), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
-                $decoded
-            )));
-
-            if ($tipoSolicitud === 'acceso4') {
-                $match = collect($values)->first(fn (string $value) => preg_match('/^\d{4}$/', $value));
-
-                return is_string($match) ? $match : '';
-            }
-
-            if ($tipoSolicitud === 'hogar') {
-                $match = collect($values)->first(fn (string $value) => str_starts_with($value, 'http'));
-
-                return is_string($match) ? $match : '';
-            }
-
-            $raw = (string) end($values);
+        if (! $account) {
+            return [];
         }
 
-        $raw = preg_replace('/[\x00-\x1F\x7F]/u', '', $raw) ?? '';
+        $emails = collect([
+            $account->email,
+        ])->map(function (?string $email) {
+            $email = mb_strtolower(trim((string) $email));
 
-        return html_entity_decode(trim($raw), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            return filter_var($email, FILTER_VALIDATE_EMAIL) ? $email : null;
+        })->filter()->unique()->values();
+
+        return $emails->all();
     }
 
-    private function configuredKeywords(string $type): array
+    private function extractCandidate(EmailPedido $email, string $tipoSolicitud): ?array
     {
-        $raw = (string) config("imap.keywords.{$type}", '');
+        foreach ($this->candidateValues($email) as $value) {
+            $candidate = $this->classifyCandidate($value, $tipoSolicitud);
+            if ($candidate !== null) {
+                return $candidate;
+            }
+        }
 
-        return array_values(array_unique(array_filter(array_map(
-            fn (string $keyword) => trim($keyword),
-            explode(',', $raw)
-        ))));
+        foreach ($this->fallbackBodyCandidates($email) as $value) {
+            $candidate = $this->classifyCandidate($value, $tipoSolicitud);
+            if ($candidate !== null) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function candidateValues(EmailPedido $email): array
+    {
+        $raw = trim((string) $email->datos_extraidos);
+        if ($raw === '') {
+            return [];
+        }
+
+        $decoded = json_decode($raw, true);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            return $this->flattenDecodedValues($decoded);
+        }
+
+        return [$this->cleanCandidateValue($raw)];
+    }
+
+    private function flattenDecodedValues(mixed $decoded): array
+    {
+        if (is_array($decoded)) {
+            $values = [];
+
+            foreach ($decoded as $value) {
+                $values = array_merge($values, $this->flattenDecodedValues($value));
+            }
+
+            return array_values(array_filter(array_unique($values)));
+        }
+
+        if (is_scalar($decoded)) {
+            $value = $this->cleanCandidateValue((string) $decoded);
+
+            return $value !== '' ? [$value] : [];
+        }
+
+        return [];
     }
 
     private function validityStart(EmailPedido $email): ?Carbon
@@ -182,21 +208,88 @@ class ApiBuscarEmailController extends Controller
         }
     }
 
-    private function applyKeywordFilters($query, array $keywords): void
+    private function classifyCandidate(string $value, string $tipoSolicitud): ?array
     {
-        $first = true;
+        $value = $this->cleanCandidateValue($value);
 
-        foreach ($keywords as $keyword) {
-            $keyword = trim((string) $keyword);
-            if ($keyword === '') {
-                continue;
+        if ($value === '') {
+            return null;
+        }
+
+        $isLink = preg_match('/^https?:\/\//i', $value) === 1;
+        $isCode4 = preg_match('/^\d{4}$/', $value) === 1;
+        $isNumericCode = preg_match('/^\d{4,8}$/', $value) === 1;
+
+        if ($tipoSolicitud === 'hogar') {
+            return $isLink
+                ? ['type' => 'link', 'value' => $value]
+                : null;
+        }
+
+        if ($tipoSolicitud === 'temporal') {
+            if ($isLink) {
+                return ['type' => 'link', 'value' => $value];
             }
 
-            $method = $first ? 'where' : 'orWhere';
-            $query->{$method}('asunto', 'LIKE', "%{$keyword}%")
-                ->orWhere('cuerpo_html', 'LIKE', "%{$keyword}%");
+            if ($isNumericCode) {
+                return ['type' => 'codigo', 'value' => $value];
+            }
 
-            $first = false;
+            return ['type' => 'login', 'value' => $value];
+        }
+
+        if ($isCode4) {
+            return ['type' => 'codigo', 'value' => $value];
+        }
+
+        if ($isLink) {
+            return ['type' => 'link', 'value' => $value];
+        }
+
+        if (mb_strlen($value) >= 4) {
+            return ['type' => 'login', 'value' => $value];
+        }
+
+        return null;
+    }
+
+    private function fallbackBodyCandidates(EmailPedido $email): array
+    {
+        $body = html_entity_decode((string) $email->cuerpo_html, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = preg_replace('/\s+/', ' ', strip_tags($body)) ?? '';
+        $candidates = [];
+
+        if (preg_match('/ingresa\s+este\s+codigo[^0-9]*(\d{4,8})/iu', $text, $matches)) {
+            $candidates[] = $matches[1];
+        }
+
+        if (preg_match('/\b(\d{4})\b/', $text, $matches)) {
+            $candidates[] = $matches[1];
+        }
+
+        if (preg_match('/(https?:\/\/[^\s"\'<>]+)/i', $body, $matches)) {
+            $candidates[] = $matches[1];
+        }
+
+        return array_values(array_filter(array_unique(array_map(
+            fn (string $value) => $this->cleanCandidateValue($value),
+            $candidates
+        ))));
+    }
+
+    private function cleanCandidateValue(?string $value): string
+    {
+        $value = preg_replace('/[\x00-\x1F\x7F]/u', '', trim((string) $value)) ?? '';
+
+        return html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+
+    private function formatDate(mixed $value): ?string
+    {
+        try {
+            return $value ? Carbon::parse($value)->format('Y-m-d H:i:s') : null;
+        } catch (Throwable) {
+            return null;
         }
     }
 

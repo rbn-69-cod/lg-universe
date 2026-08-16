@@ -113,9 +113,17 @@ class ProcesarEmailsPedidos extends Command
     {
         try {
             $minutos = min(7, max(1, (int) config('imap.retention_minutes')));
+            $cutoff = now()->subMinutes($minutos);
 
             DB::table($dbTabla)
-                ->whereRaw('fecha_recibido < (NOW() - INTERVAL ? MINUTE)', [$minutos])
+                ->where(function ($query) use ($cutoff) {
+                    $query->whereNotNull('fecha_procesado_db')
+                        ->where('fecha_procesado_db', '<', $cutoff);
+                })
+                ->orWhere(function ($query) use ($cutoff) {
+                    $query->whereNull('fecha_procesado_db')
+                        ->where('fecha_recibido', '<', $cutoff);
+                })
                 ->delete();
         } catch (\Throwable $e) {
             $this->log('Error limpieza: '.$e->getMessage());

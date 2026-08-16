@@ -1,5 +1,6 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import Swal from 'sweetalert2';
 
 import { NetcodeAccessPage } from './netcode-access-page';
@@ -8,10 +9,15 @@ import { NetcodeApi } from './netcode-api';
 describe('NetcodeAccessPage', () => {
   let fixture: ComponentFixture<NetcodeAccessPage>;
   let component: NetcodeAccessPage;
-  let api: any;
+  let api: {
+    tutorials: ReturnType<typeof vi.fn>;
+    searchEmail: ReturnType<typeof vi.fn>;
+    validateAccess: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(async () => {
-    vi.spyOn(Swal, 'fire').mockResolvedValue({ isConfirmed: false } as any);
+    vi.useFakeTimers();
+    vi.spyOn(Swal, 'fire').mockResolvedValue({ isConfirmed: false } as never);
     vi.spyOn(Swal, 'showLoading').mockImplementation(() => undefined);
 
     api = {
@@ -32,6 +38,7 @@ describe('NetcodeAccessPage', () => {
       step: 'pin',
       message: 'OK',
       cuenta: {
+        id: 25,
         email: 'cliente@example.com',
         password: null,
         producto: 'Netflix',
@@ -52,27 +59,49 @@ describe('NetcodeAccessPage', () => {
 
   afterEach(() => {
     component.cancelSearch();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
   it('shows a found access code and stops polling immediately', async () => {
-    api.searchEmail.mockReturnValue(of({ status: 'success', message: 'OK', valor_extraido: '1234', tipo: 'codigo' }));
+    api.searchEmail.mockReturnValue(
+      of({
+        status: 'success',
+        found: true,
+        message: 'OK',
+        value: '1234',
+        type: 'codigo',
+        email: 'cliente@example.com',
+      })
+    );
 
     await component.startAccessCodeSearch(false);
 
     expect(component.resultValue()).toBe('1234');
+    expect(component.resultType()).toBe('codigo');
     expect(component.viewState()).toBe('result');
     expect(component.isSearching()).toBe(false);
-    expect((component as unknown as { polling: number | null }).polling).toBeNull();
+    expect((component as unknown as { pollingTimer: number | null }).pollingTimer).toBeNull();
+    expect((component as unknown as { pollingRequest: unknown | null }).pollingRequest).toBeNull();
+    expect(api.searchEmail).toHaveBeenCalledWith({ account_id: 25, subject: 'acceso4' });
+  });
+
+  it('shows retry after the first search without result', async () => {
+    await component.startAccessCodeSearch(false);
+
+    component.timeLeft.set(0);
+    (component as unknown as { tick: () => void }).tick();
+
+    expect(component.searchAttempt()).toBe(1);
+    expect(component.canRetrySearch()).toBe(true);
+    expect(component.isSearching()).toBe(false);
   });
 
   it('allows only two searches and does not start a third one', async () => {
     await component.startAccessCodeSearch(false);
     component.timeLeft.set(0);
     (component as unknown as { tick: () => void }).tick();
-
-    expect(component.searchAttempt()).toBe(1);
-    expect(component.canRetrySearch()).toBe(true);
 
     component.retrySearch();
     component.timeLeft.set(0);
@@ -82,6 +111,27 @@ describe('NetcodeAccessPage', () => {
     expect(component.canRetrySearch()).toBe(false);
 
     await component.startAccessCodeSearch(false);
+
+    expect(api.searchEmail).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not create simultaneous polling timers or overlapping requests', async () => {
+    const pendingRequest = new Subject<unknown>();
+    api.searchEmail.mockReturnValue(pendingRequest.asObservable());
+
+    await component.startAccessCodeSearch(false);
+
+    expect(api.searchEmail).toHaveBeenCalledTimes(1);
+    expect((component as unknown as { pollingTimer: number | null }).pollingTimer).toBeNull();
+
+    vi.advanceTimersByTime(20000);
+
+    expect(api.searchEmail).toHaveBeenCalledTimes(1);
+
+    pendingRequest.next({ status: 'not_found', message: 'Nada' });
+    pendingRequest.complete();
+
+    vi.advanceTimersByTime(4000);
 
     expect(api.searchEmail).toHaveBeenCalledTimes(2);
   });
