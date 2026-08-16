@@ -37,7 +37,23 @@ Este build genera:
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
-La entrada publica es Nginx en puerto `80`. Angular es el frontend principal y Laravel queda detras de Nginx para API, autenticacion, media privada, cron y endpoints backend.
+La entrada publica es Nginx en puertos `80` y `443`. Angular es el frontend principal y Laravel queda detras de Nginx para API, autenticacion, media privada, cron y endpoints backend.
+
+Antes del certificado real, Nginx puede arrancar con un certificado temporal generado dentro del volumen Docker. Luego se emite Let's Encrypt por webroot:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm certbot certonly \
+  --webroot \
+  -w /var/www/certbot \
+  -d igruben.lat \
+  --email TU_CORREO_REAL \
+  --agree-tos \
+  --no-eff-email \
+  --force-renewal
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec nginx nginx -s reload
+```
+
+No usar `certbot --nginx` en el host porque Nginx esta dentro del contenedor `lg-nginx`.
 
 6. Ejecutar migraciones solo tras backup:
 
@@ -58,6 +74,24 @@ El seeder es idempotente: si el correo ya existe, actualiza nombre, rol `admin`,
 ```bash
 docker compose exec backend php artisan route:list
 docker compose exec backend php artisan queue:work --once
+curl -I https://igruben.lat
+curl -I https://igruben.lat/api/v1/payment-settings
+```
+
+## Renovacion SSL
+
+Certbot usa los volumenes persistentes `letsencrypt` y `certbot_challenges`.
+
+Renovacion manual:
+
+```bash
+sh scripts/renew-certificates.sh
+```
+
+Renovacion automatica recomendada en la VM:
+
+```cron
+17 3 * * * cd /var/www/lg-universe/backend && sh scripts/renew-certificates.sh >> /var/log/lg-universe-certbot.log 2>&1
 ```
 
 ## Rollback

@@ -6,8 +6,11 @@ services:
       dockerfile: backend/docker/nginx/Dockerfile
     ports: !override
       - "80:80"
+      - "443:443"
     restart: unless-stopped
-    volumes: !override []
+    volumes: !override
+      - letsencrypt:/etc/letsencrypt
+      - certbot_challenges:/var/www/certbot:ro
 
   backend:
     image: lg-backend
@@ -40,6 +43,16 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
 
+  certbot:
+    image: certbot/certbot:v2.11.0
+    profiles:
+      - certbot
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot_challenges:/var/www/certbot
+
 volumes:
   app_storage:
   mysql_data:
+  letsencrypt:
+  certbot_challenges:

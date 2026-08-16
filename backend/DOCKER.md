@@ -2,10 +2,11 @@
 
 ## Servicios
 
-- `nginx`: entrada HTTP publica. En produccion compila Angular y sirve la SPA.
+- `nginx`: entrada HTTP/HTTPS publica. En produccion compila Angular y sirve la SPA.
 - `backend`: Laravel PHP-FPM.
 - `worker`: `php artisan queue:work`.
 - `mysql`: MySQL 8.4 interno, sin puerto publico.
+- `certbot`: emision/renovacion de certificados Let's Encrypt mediante webroot.
 
 ## Desarrollo local
 
@@ -65,6 +66,9 @@ En produccion:
 - `mysql_data` persiste MySQL.
 - `app_storage` persiste `storage` para backend y worker.
 - `APP_ENV=production` y `APP_DEBUG=false` se fuerzan desde `docker-compose.prod.yml`.
+- Los certificados Let's Encrypt persisten en el volumen `letsencrypt`.
+- Los challenges ACME persisten en `certbot_challenges` y Nginx los sirve desde `/.well-known/acme-challenge/`.
+- Nginx publica `80:80` para redireccion/renovacion ACME y `443:443` para HTTPS.
 
 En VM pequenas, construir con un solo job de Compose evita presion de memoria:
 
@@ -75,6 +79,50 @@ COMPOSE_PARALLEL_LIMIT=1 docker compose -f docker-compose.yml -f docker-compose.
 No ejecutes migraciones destructivas automaticamente. Primero backup, luego `php artisan migrate`, luego verificacion.
 
 La imagen de desarrollo instala dependencias Composer de desarrollo para permitir tests. La combinacion con `docker-compose.prod.yml` usa `INSTALL_DEV=false`.
+
+## HTTPS con Let's Encrypt
+
+Nginx corre dentro de Docker. No uses `certbot --nginx` en el host.
+
+El contenedor Nginx genera un certificado temporal de 1 dia solo si todavia no existe `/etc/letsencrypt/live/igruben.lat/fullchain.pem`. Esto permite que Nginx arranque antes de emitir el certificado real. Ese certificado temporal vive en el volumen Docker, no en Git.
+
+Primer certificado para `igruben.lat`:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm certbot certonly \
+  --webroot \
+  -w /var/www/certbot \
+  -d igruben.lat \
+  --email TU_CORREO_REAL \
+  --agree-tos \
+  --no-eff-email \
+  --force-renewal
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec nginx nginx -s reload
+```
+
+No agregues `www.igruben.lat` al certificado hasta verificar que su DNS exista y apunte a la VM.
+
+Verificacion:
+
+```bash
+curl -I http://igruben.lat
+curl -I https://igruben.lat
+curl -I https://igruben.lat/api/v1/payment-settings
+docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm certbot certificates
+```
+
+Renovacion manual:
+
+```bash
+sh scripts/renew-certificates.sh
+```
+
+Renovacion automatica recomendada en la VM con cron del host:
+
+```cron
+17 3 * * * cd /var/www/lg-universe/backend && sh scripts/renew-certificates.sh >> /var/log/lg-universe-certbot.log 2>&1
+```
 
 ## Administrador inicial
 

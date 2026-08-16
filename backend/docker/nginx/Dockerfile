@@ -41,8 +41,13 @@ RUN npm run build
 
 FROM nginx:1.27-alpine
 
+RUN apk add --no-cache openssl
+
 COPY backend/docker/nginx/production.conf /etc/nginx/conf.d/default.conf
+COPY backend/docker/nginx/entrypoint.sh /docker-entrypoint.d/10-lg-ssl-bootstrap.sh
 COPY --from=frontend-build /app/frontend/dist/frontend/browser /usr/share/nginx/html
 COPY --from=backend-assets /app/backend/public/build /var/www/backend-public/build
 COPY backend/public/images /var/www/backend-public/images
 COPY backend/public/robots.txt /var/www/backend-public/robots.txt
+
+RUN chmod +x /docker-entrypoint.d/10-lg-ssl-bootstrap.sh
