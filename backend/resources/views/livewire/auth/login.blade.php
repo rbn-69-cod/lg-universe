@@ -270,7 +270,7 @@
 
                 <label>
                     Correo
-                    <input class="field" name="email" type="email" value="{{ old('email') }}" required autofocus autocomplete="off" placeholder="Ingresa tu correo">
+                    <input class="field" name="email" type="email" value="{{ old('email') }}" required autofocus autocomplete="username" placeholder="Ingresa tu correo">
                     @error('email')
                         <span class="error">{{ $message }}</span>
                     @enderror

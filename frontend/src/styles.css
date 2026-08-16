@@ -2,8 +2,31 @@
   box-sizing: border-box;
 }
 
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 html,
 body {
+  width: 100%;
   min-height: 100%;
   margin: 0;
+}
+
+body {
+  overflow-wrap: anywhere;
+}
+
+img,
+video,
+svg {
+  max-width: 100%;
+}
+
+button,
+input,
+textarea,
+select {
+  min-width: 0;
 }

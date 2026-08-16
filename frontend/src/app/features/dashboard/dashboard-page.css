@@ -14,6 +14,12 @@ a {
   font: inherit;
 }
 
+.dashboard *,
+.dashboard *::before,
+.dashboard *::after {
+  min-width: 0;
+}
+
 .dashboard {
   min-height: 100dvh;
   padding: 24px;
@@ -268,6 +274,7 @@ select:focus-visible {
 .section-workspace {
   display: grid;
   gap: 14px;
+  min-width: 0;
   border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 22px;
   padding: 14px;
@@ -306,6 +313,7 @@ select:focus-visible {
   min-height: 114px;
   border-radius: 18px;
   padding: 16px;
+  min-width: 0;
   box-shadow: 0 22px 70px rgba(0, 0, 0, 0.22);
 }
 
@@ -355,6 +363,19 @@ select:focus-visible {
   gap: 12px;
   background: rgba(255, 255, 255, 0.055);
   transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+.platform-chip > div,
+.quick-card,
+.tutorial-card,
+.catalog-card,
+.payment-method-card,
+.range-card,
+.account,
+.profile,
+.imap-card,
+.cron-box {
+  min-width: 0;
 }
 
 .platform-chip:hover,
@@ -454,6 +475,7 @@ select:focus-visible {
 }
 
 .imap-settings input {
+  width: 100%;
   min-height: 42px;
   border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 12px;
@@ -545,6 +567,7 @@ select:focus-visible {
   display: flex;
   justify-content: space-between;
   gap: 12px;
+  min-width: 0;
 }
 
 .tutorial-card header span,
@@ -743,6 +766,11 @@ select:focus-visible {
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.payment-method-card header > div,
+.payment-method-body > div {
+  min-width: 0;
+}
+
 .payment-method-card p {
   margin-top: 4px;
   color: rgba(248, 251, 255, 0.6);
@@ -822,6 +850,10 @@ select:focus-visible {
   border-radius: 18px;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.055);
+}
+
+.catalog-body {
+  min-width: 0;
 }
 
 .catalog-card.inactive {
@@ -1291,6 +1323,9 @@ th {
 
 .table-wrap {
   overflow: auto;
+  max-width: 100%;
+  border-radius: 16px;
+  -webkit-overflow-scrolling: touch;
 }
 
 table {
@@ -1449,9 +1484,81 @@ td small {
   }
 }
 
+@media (max-width: 760px) {
+  .section-tabs {
+    display: flex;
+    grid-template-columns: none;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scroll-snap-type: x proximity;
+  }
+
+  .section-tabs button {
+    flex: 0 0 auto;
+    min-width: 128px;
+    scroll-snap-align: start;
+  }
+
+  .workspace-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .workspace-head .btn,
+  .imap-actions .btn,
+  .catalog-form-actions .btn,
+  .tutorial-actions .btn,
+  .payment-actions .btn {
+    width: 100%;
+  }
+
+  .payment-method-card header,
+  .tutorial-card header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .payment-fields,
+  .imap-settings,
+  .catalog-editor,
+  .range-form {
+    grid-template-columns: 1fr;
+  }
+
+  .payment-fields .wide,
+  .imap-settings .wide,
+  .catalog-editor .wide,
+  .range-form .wide {
+    grid-column: auto;
+  }
+
+  .payment-method-body {
+    grid-template-columns: 1fr;
+  }
+
+  table {
+    min-width: 760px;
+  }
+}
+
 @media (max-width: 560px) {
   .dashboard {
+    padding: 12px;
+  }
+
+  .hero,
+  .section-workspace,
+  .section {
+    border-radius: 16px;
+  }
+
+  .hero {
     padding: 16px;
+  }
+
+  .hero-title {
+    font-size: clamp(32px, 15vw, 46px);
+    line-height: 0.95;
   }
 
   .metrics,
@@ -1467,6 +1574,12 @@ td small {
 
   .btn {
     width: 100%;
+  }
+
+  .section-tabs {
+    position: sticky;
+    top: 6px;
+    margin-inline: -2px;
   }
 
   .platform-chip,
@@ -1497,5 +1610,30 @@ td small {
 
   .catalog-body {
     padding: 14px;
+  }
+
+  .columns-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .payment-fields,
+  .payment-editor,
+  .payment-methods,
+  .catalog-grid,
+  .tutorial-grid,
+  .imap-grid,
+  .range-form,
+  .accounts,
+  .profiles {
+    padding-inline: 12px;
+  }
+
+  .table-wrap {
+    margin-inline: -2px;
+  }
+
+  table {
+    min-width: 680px;
+    font-size: 12px;
   }
 }
