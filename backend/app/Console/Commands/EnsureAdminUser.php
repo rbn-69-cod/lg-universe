@@ -2,35 +2,38 @@
 
 namespace App\Console\Commands;
 
-use App\Models\User;
+use App\Services\Auth\InitialAdminUserService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 class EnsureAdminUser extends Command
 {
     protected $signature = 'admin:ensure-user
-        {--email=igr.ruben@gmail.com : Admin email}
-        {--password=123456789 : Admin password}
-        {--name=Igr Ruben : Admin name}';
+        {--email= : Admin email. Defaults to ADMIN_EMAIL}
+        {--password= : Admin password. Defaults to ADMIN_PASSWORD}
+        {--name= : Admin name. Defaults to ADMIN_NAME}';
 
     protected $description = 'Crea o actualiza el usuario administrador principal';
 
-    public function handle(): int
+    public function handle(InitialAdminUserService $service): int
     {
-        $email = mb_strtolower((string) $this->option('email'));
-        $password = (string) $this->option('password');
-        $name = (string) $this->option('name');
+        try {
+            $result = $service->ensure(
+                $this->option('name'),
+                $this->option('email'),
+                $this->option('password'),
+            );
+        } catch (ValidationException $exception) {
+            foreach ($exception->errors() as $messages) {
+                foreach ($messages as $message) {
+                    $this->error($message);
+                }
+            }
 
-        $user = User::query()->updateOrCreate(
-            ['email' => $email],
-            [
-                'name' => $name,
-                'password' => Hash::make($password),
-                'email_verified_at' => now(),
-            ]
-        );
+            return self::FAILURE;
+        }
 
-        $this->info(($user->wasRecentlyCreated ? 'Usuario creado: ' : 'Usuario actualizado: ').$email);
+        $this->info(($result['created'] ? 'Administrador creado: ' : 'Administrador actualizado: ').$result['user']->email);
 
         return self::SUCCESS;
     }

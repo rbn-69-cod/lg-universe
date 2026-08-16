@@ -98,6 +98,7 @@ class DashboardData
                 ])
                 ->values(),
             'admins' => User::query()
+                ->where('role', User::ROLE_ADMIN)
                 ->orderBy('id')
                 ->get()
                 ->map(fn (User $user) => [

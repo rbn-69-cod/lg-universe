@@ -11,6 +11,14 @@ development -> staging -> main -> VM Starlight -> Docker -> Produccion
 1. Instalar Docker y Docker Compose.
 2. Clonar el repositorio desde GitHub.
 3. Crear `.env` real en la VM desde `.env.example`.
+   Configurar tambien el primer administrador sin guardar credenciales en Git:
+
+```env
+ADMIN_NAME="Administrador"
+ADMIN_EMAIL=
+ADMIN_PASSWORD=
+```
+
 4. Ejecutar build:
 
 ```bash
@@ -37,7 +45,13 @@ La entrada publica es Nginx en puerto `80`. Angular es el frontend principal y L
 docker compose exec backend php artisan migrate
 ```
 
-7. No ejecutar `db:seed` en produccion salvo que exista un seeder especifico e idempotente para datos base. El seeder actual crea un usuario de prueba.
+7. Crear o actualizar el administrador inicial desde variables de entorno:
+
+```bash
+docker compose exec backend php artisan db:seed --class=InitialAdminSeeder
+```
+
+El seeder es idempotente: si el correo ya existe, actualiza nombre, rol `admin`, verificacion y password usando `ADMIN_PASSWORD`. No imprime la contrasena.
 
 8. Verificar:
 

@@ -76,6 +76,30 @@ No ejecutes migraciones destructivas automaticamente. Primero backup, luego `php
 
 La imagen de desarrollo instala dependencias Composer de desarrollo para permitir tests. La combinacion con `docker-compose.prod.yml` usa `INSTALL_DEV=false`.
 
+## Administrador inicial
+
+Configura el primer administrador solo en el `.env` real de la VM:
+
+```env
+ADMIN_NAME="Administrador"
+ADMIN_EMAIL=
+ADMIN_PASSWORD=
+```
+
+Luego ejecuta:
+
+```bash
+docker compose exec backend php artisan db:seed --class=InitialAdminSeeder
+```
+
+Tambien puedes usar el comando equivalente:
+
+```bash
+docker compose exec backend php artisan admin:ensure-user
+```
+
+Ambos leen `ADMIN_EMAIL` y `ADMIN_PASSWORD`, crean el usuario si no existe, lo actualizan si ya existe, asignan rol `admin` y no imprimen la contrasena.
+
 ## Backup MySQL
 
 El script base esta en `docker/mysql-backup.sh`. Debe ejecutarse desde un contenedor con `mysqldump` y escribir fuera de la VM o sincronizarse a almacenamiento externo.

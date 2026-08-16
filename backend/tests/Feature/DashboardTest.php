@@ -9,19 +9,19 @@ test('guests are redirected to the login page', function () {
 });
 
 test('authenticated users are redirected to the angular dashboard', function () {
-    $this->actingAs($user = User::factory()->create());
+    $this->actingAs($user = User::factory()->admin()->create());
 
     $this->get('/dashboard')->assertRedirect('http://localhost:4200/dashboard');
 });
 
 test('authenticated users can visit the legacy blade dashboard', function () {
-    $this->actingAs($user = User::factory()->create());
+    $this->actingAs($user = User::factory()->admin()->create());
 
     $this->get('/legacy/dashboard')->assertStatus(200);
 });
 
 test('authenticated users can fetch dashboard api data', function () {
-    $this->actingAs(User::factory()->create());
+    $this->actingAs(User::factory()->admin()->create());
 
     $this->getJson('/api/v1/dashboard')
         ->assertOk()
@@ -45,7 +45,7 @@ test('authenticated users can fetch dashboard api data', function () {
 });
 
 test('authenticated users can create dashboard excel tables', function () {
-    $this->actingAs(User::factory()->create());
+    $this->actingAs(User::factory()->admin()->create());
 
     $this->postJson('/api/v1/dashboard/excel-ranges', [
         'plataforma' => 'Disney',
@@ -80,7 +80,7 @@ test('authenticated users can create dashboard excel tables', function () {
 });
 
 test('active excel tables cannot overlap in the same source sheet even across platforms', function () {
-    $this->actingAs(User::factory()->create());
+    $this->actingAs(User::factory()->admin()->create());
 
     $payload = [
         'nombre_tabla' => '',
@@ -121,7 +121,7 @@ test('active excel tables cannot overlap in the same source sheet even across pl
 });
 
 test('authenticated users can update account bot links', function () {
-    $this->actingAs(User::factory()->create());
+    $this->actingAs(User::factory()->admin()->create());
 
     $product = Producto::query()->create([
         'nombre' => 'Netflix Premium',
@@ -157,6 +157,19 @@ test('authenticated users can update account bot links', function () {
         ->assertJsonPath('data.accounts.0.bot_preferencia', 'principal')
         ->assertJsonPath('data.accounts.0.bot_hogar_url', null)
         ->assertJsonPath('data.accounts.0.bot_acceso4_url', null);
+});
+
+test('administrator can create another administrator', function () {
+    $this->actingAs(User::factory()->admin()->create());
+
+    $this->postJson('/api/v1/dashboard/admins', [
+        'name' => 'Nuevo Admin',
+        'email' => 'nuevo-admin@example.com',
+        'password' => 'secure-password',
+    ])->assertCreated();
+
+    expect(User::query()->where('email', 'nuevo-admin@example.com')->first()?->role)
+        ->toBe(User::ROLE_ADMIN);
 });
 
 test('secure bot links require authentication', function () {

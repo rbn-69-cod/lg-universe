@@ -410,7 +410,10 @@ class DashboardApiController extends Controller
             'password' => ['required', 'string', 'min:8', 'max:255'],
         ]);
 
-        User::query()->create($data);
+        User::query()->create($data + [
+            'role' => User::ROLE_ADMIN,
+            'email_verified_at' => now(),
+        ]);
 
         return response()->json([
             'message' => 'Admin creado.',
@@ -431,6 +434,10 @@ class DashboardApiController extends Controller
         }
 
         $user->update($data);
+
+        if (! $user->isAdmin()) {
+            $user->forceFill(['role' => User::ROLE_ADMIN])->save();
+        }
 
         return response()->json([
             'message' => 'Admin actualizado.',
