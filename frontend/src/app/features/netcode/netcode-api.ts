@@ -19,6 +19,7 @@ export interface NetcodeSearchResponse {
   value?: string;
   email?: string;
   received_at?: string | null;
+  validity_source?: 'processed_at' | 'received_at';
   valor_extraido?: string;
   tipo?: 'codigo' | 'link' | 'login';
   fecha?: string | null;

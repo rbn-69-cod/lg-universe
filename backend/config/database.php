@@ -2,6 +2,17 @@
 
 use Illuminate\Support\Str;
 
+$appTimezone = env('APP_TIMEZONE', 'America/Lima');
+$databaseTimezone = env('DB_TIMEZONE');
+
+if (! is_string($databaseTimezone) || trim($databaseTimezone) === '') {
+    try {
+        $databaseTimezone = (new \DateTimeImmutable('now', new \DateTimeZone($appTimezone)))->format('P');
+    } catch (\Throwable) {
+        $databaseTimezone = '-05:00';
+    }
+}
+
 return [
 
     /*
@@ -54,6 +65,7 @@ return [
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => env('DB_CHARSET', 'utf8mb4'),
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'timezone' => $databaseTimezone,
             'prefix' => '',
             'prefix_indexes' => true,
             'strict' => true,
@@ -74,6 +86,7 @@ return [
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => env('DB_CHARSET', 'utf8mb4'),
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
+            'timezone' => $databaseTimezone,
             'prefix' => '',
             'prefix_indexes' => true,
             'strict' => true,

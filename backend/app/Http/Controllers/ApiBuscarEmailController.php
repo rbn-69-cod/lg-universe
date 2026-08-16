@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Cuenta;
 use App\Models\EmailPedido;
 use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Throwable;
@@ -65,7 +66,11 @@ class ApiBuscarEmailController extends Controller
                 ->orderBy('id', 'desc')
                 ->get()
                 ->first(function (EmailPedido $email) use ($tipoSolicitud) {
-                    return $this->extractCandidate($email, $tipoSolicitud) !== null;
+                    if ($this->extractCandidate($email, $tipoSolicitud) === null) {
+                        return false;
+                    }
+
+                    return $this->secondsRemaining($email) > 0;
                 });
 
             if (! $emailDataModel) {
@@ -88,11 +93,22 @@ class ApiBuscarEmailController extends Controller
             }
 
             $validityStart = $this->validityStart($emailDataModel);
-            $expiresAt = $validityStart?->copy()->addMinutes(self::CODE_TTL_MINUTES);
-            $secondsRemaining = $expiresAt && $expiresAt->greaterThan(now())
-                ? (int) now()->diffInSeconds($expiresAt)
-                : 0;
+            $expiresAt = $this->expiresAt($emailDataModel);
+            $secondsRemaining = $this->secondsRemaining($emailDataModel);
+
+            if ($secondsRemaining <= 0 || ! $validityStart || ! $expiresAt) {
+                return $this->safeJsonResponse([
+                    'status' => 'not_found',
+                    'found' => false,
+                    'message' => 'El correo existe, pero el resultado ya expiro.',
+                    'debug_id' => $emailDataModel->id,
+                ]);
+            }
+
             $receivedAt = $this->formatDate($emailDataModel->fecha_recibido);
+            $processedAt = $emailDataModel->fecha_procesado_db
+                ? $this->formatDate($emailDataModel->fecha_procesado_db)
+                : null;
 
             return $this->safeJsonResponse([
                 'status' => 'success',
@@ -102,11 +118,12 @@ class ApiBuscarEmailController extends Controller
                 'value' => $candidate['value'],
                 'email' => $emailDataModel->destinatario_original,
                 'received_at' => $receivedAt,
+                'validity_source' => $emailDataModel->fecha_procesado_db ? 'processed_at' : 'received_at',
                 'valor_extraido' => $candidate['value'],
                 'tipo' => $candidate['type'],
                 'fecha' => $receivedAt,
-                'processed_at' => $validityStart?->format('Y-m-d H:i:s'),
-                'expires_at' => $expiresAt?->format('Y-m-d H:i:s'),
+                'processed_at' => $processedAt,
+                'expires_at' => $expiresAt->format('Y-m-d H:i:s'),
                 'seconds_remaining' => $secondsRemaining,
                 'valid_for_minutes' => self::CODE_TTL_MINUTES,
                 'debug_id' => $emailDataModel->id,
@@ -195,17 +212,37 @@ class ApiBuscarEmailController extends Controller
         return [];
     }
 
-    private function validityStart(EmailPedido $email): ?Carbon
+    private function validityStart(EmailPedido $email): ?CarbonImmutable
     {
         try {
             if ($email->fecha_procesado_db) {
-                return Carbon::parse($email->fecha_procesado_db);
+                return CarbonImmutable::parse($email->fecha_procesado_db, config('app.timezone'));
             }
 
-            return $email->fecha_recibido ? Carbon::parse($email->fecha_recibido) : null;
+            return $email->fecha_recibido
+                ? CarbonImmutable::parse($email->fecha_recibido, config('app.timezone'))
+                : null;
         } catch (Throwable) {
             return null;
         }
+    }
+
+    private function expiresAt(EmailPedido $email): ?CarbonImmutable
+    {
+        return $this->validityStart($email)?->addMinutes(self::CODE_TTL_MINUTES);
+    }
+
+    private function secondsRemaining(EmailPedido $email): int
+    {
+        $expiresAt = $this->expiresAt($email);
+        if (! $expiresAt) {
+            return 0;
+        }
+
+        $now = CarbonImmutable::now(config('app.timezone'));
+        $secondsRemaining = (int) $now->diffInSeconds($expiresAt, false);
+
+        return max(0, min(self::CODE_TTL_MINUTES * 60, $secondsRemaining));
     }
 
     private function classifyCandidate(string $value, string $tipoSolicitud): ?array
@@ -287,7 +324,9 @@ class ApiBuscarEmailController extends Controller
     private function formatDate(mixed $value): ?string
     {
         try {
-            return $value ? Carbon::parse($value)->format('Y-m-d H:i:s') : null;
+            return $value
+                ? Carbon::parse($value, config('app.timezone'))->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s')
+                : null;
         } catch (Throwable) {
             return null;
         }

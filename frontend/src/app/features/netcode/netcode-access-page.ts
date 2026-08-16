@@ -73,6 +73,8 @@ export class NetcodeAccessPage implements OnDestroy {
   readonly resultType = signal<SearchResultType | ''>('');
   readonly resultEmail = signal('');
   readonly resultReceivedAt = signal('');
+  readonly resultProcessedAt = signal('');
+  readonly resultValiditySource = signal<'processed_at' | 'received_at'>('processed_at');
   readonly resultSecondsLeft = signal(0);
   readonly resultExpiresAt = signal('');
   readonly searchAttempt = signal(0);
@@ -113,6 +115,9 @@ export class NetcodeAccessPage implements OnDestroy {
     return 'COPIAR CODIGO';
   });
   readonly resultSecondaryActionLabel = computed(() => (this.resultIsLink() ? 'COPIAR LINK' : 'NUEVA BUSQUEDA'));
+  readonly resultReceivedLabel = computed(() => this.formatBackendDateLabel(this.resultReceivedAt()));
+  readonly resultProcessedLabel = computed(() => this.formatBackendDateLabel(this.resultProcessedAt()));
+  readonly resultExpiresLabel = computed(() => this.formatBackendDateLabel(this.resultExpiresAt()));
 
   constructor() {
     this.api.tutorials().subscribe({
@@ -362,6 +367,7 @@ export class NetcodeAccessPage implements OnDestroy {
     this.resultType.set('');
     this.resultEmail.set('');
     this.resultReceivedAt.set('');
+    this.resultProcessedAt.set('');
     this.stopResultValidityCountdown();
     this.timeLeft.set(MAX_TIME);
     this.scanStatus.set('Buscando codigo, link o login reciente...');
@@ -410,6 +416,8 @@ export class NetcodeAccessPage implements OnDestroy {
           this.resultType.set(result.type);
           this.resultEmail.set(result.email);
           this.resultReceivedAt.set(result.receivedAt);
+          this.resultProcessedAt.set(result.processedAt);
+          this.resultValiditySource.set(result.validitySource);
           this.resultExpiresAt.set(result.expiresAt);
           this.startResultValidityCountdown(result.secondsLeft);
           this.searchFinishedWithoutResult.set(false);
@@ -462,11 +470,21 @@ export class NetcodeAccessPage implements OnDestroy {
 
   private normalizeSearchResult(
     data: NetcodeSearchResponse
-  ): { type: SearchResultType; value: string; email: string; receivedAt: string; expiresAt: string; secondsLeft: number } | null {
+  ): {
+    type: SearchResultType;
+    value: string;
+    email: string;
+    receivedAt: string;
+    processedAt: string;
+    expiresAt: string;
+    secondsLeft: number;
+    validitySource: 'processed_at' | 'received_at';
+  } | null {
     const value = String(data.value ?? data.valor_extraido ?? '').trim();
     const type = (data.type ?? data.tipo ?? '') as SearchResultType | '';
+    const secondsLeft = Math.max(0, Math.min(420, Number(data.seconds_remaining ?? 0)));
 
-    if (data.status !== 'success' || !value || !type) {
+    if (data.status !== 'success' || !value || !type || secondsLeft <= 0) {
       return null;
     }
 
@@ -475,8 +493,10 @@ export class NetcodeAccessPage implements OnDestroy {
       value,
       email: data.email || '',
       receivedAt: data.received_at || data.fecha || '',
+      processedAt: data.processed_at || '',
       expiresAt: data.expires_at || '',
-      secondsLeft: Math.max(0, Number(data.seconds_remaining ?? 420)),
+      secondsLeft,
+      validitySource: data.validity_source === 'received_at' ? 'received_at' : 'processed_at',
     };
   }
 
@@ -512,6 +532,8 @@ export class NetcodeAccessPage implements OnDestroy {
     this.resultType.set('');
     this.resultEmail.set('');
     this.resultReceivedAt.set('');
+    this.resultProcessedAt.set('');
+    this.resultValiditySource.set('processed_at');
     this.resultSecondsLeft.set(0);
     this.resultExpiresAt.set('');
     this.stopResultValidityCountdown();
@@ -572,7 +594,7 @@ export class NetcodeAccessPage implements OnDestroy {
           ${this.escapeHtml(value)}
         </div>
         <div style="margin-top:12px;color:#ffd166;font-weight:900">Vigente por <span id="swal-code-timer">${this.formatSeconds(modalSeconds)}</span></div>
-        <div style="margin-top:6px;color:rgba(255,255,255,.68);font-size:13px">El resultado dura 7 minutos desde que fue procesado.</div>
+        <div style="margin-top:6px;color:rgba(255,255,255,.68);font-size:13px">El resultado dura 7 minutos desde que fue ${this.resultValiditySource() === 'processed_at' ? 'procesado' : 'recibido'}.</div>
       `,
       icon: 'success',
       confirmButtonText,
@@ -654,6 +676,15 @@ export class NetcodeAccessPage implements OnDestroy {
       .padStart(2, '0');
 
     return `${minutes}:${remainder}`;
+  }
+
+  private formatBackendDateLabel(value: string): string {
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}:\d{2}:\d{2})$/);
+    if (!match) {
+      return value;
+    }
+
+    return `${match[3]}/${match[2]} ${match[4]}`;
   }
 
   private tutorialFor(key: string): Tutorial {

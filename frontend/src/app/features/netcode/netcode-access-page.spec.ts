@@ -73,6 +73,11 @@ describe('NetcodeAccessPage', () => {
         value: '1234',
         type: 'codigo',
         email: 'cliente@example.com',
+        received_at: '2026-08-16 05:20:03',
+        processed_at: '2026-08-16 05:20:03',
+        expires_at: '2026-08-16 05:27:03',
+        seconds_remaining: 420,
+        validity_source: 'processed_at',
       })
     );
 
@@ -85,6 +90,17 @@ describe('NetcodeAccessPage', () => {
     expect((component as unknown as { pollingTimer: number | null }).pollingTimer).toBeNull();
     expect((component as unknown as { pollingRequest: unknown | null }).pollingRequest).toBeNull();
     expect(api.searchEmail).toHaveBeenCalledWith({ account_id: 25, subject: 'acceso4' });
+  });
+
+  it('formats the countdown as MM:SS and stops at 00:00', () => {
+    (component as unknown as { startResultValidityCountdown: (seconds: number) => void }).startResultValidityCountdown(65);
+
+    expect(component.resultValidityLabel()).toBe('01:05');
+
+    vi.advanceTimersByTime(65000);
+
+    expect(component.resultValidityLabel()).toBe('00:00');
+    expect(component.resultSecondsLeft()).toBe(0);
   });
 
   it('shows retry after the first search without result', async () => {

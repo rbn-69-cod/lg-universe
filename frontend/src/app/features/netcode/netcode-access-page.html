@@ -211,11 +211,15 @@
           }
           @if (resultReceivedAt()) {
             <br />
-            Recibido: {{ resultReceivedAt() }}
+            Recibido: {{ resultReceivedLabel() }}
+          }
+          @if (resultProcessedAt()) {
+            <br />
+            Procesado: {{ resultProcessedLabel() }}
           }
           @if (resultExpiresAt()) {
             <br />
-            Expira: {{ resultExpiresAt() }}
+            Vigente hasta: {{ resultExpiresLabel() }}
           }
         </p>
         <div class="scan-actions">

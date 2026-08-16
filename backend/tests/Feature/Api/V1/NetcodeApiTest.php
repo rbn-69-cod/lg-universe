@@ -439,6 +439,155 @@ it('returns results created six minutes ago inside the seven minute window', fun
         ->assertJsonPath('value', '4321');
 });
 
+it('returns 420 seconds remaining when a code was just processed', function () {
+    Carbon\Carbon::setTestNow(Carbon\Carbon::create(2026, 8, 16, 5, 20, 0, 'America/Lima'));
+
+    EmailPedido::query()->create([
+        'destinatario_original' => 'ahora@example.com',
+        'asunto' => 'Netflix: tu codigo',
+        'remitente' => 'Netflix',
+        'fecha_recibido' => now(),
+        'cuerpo_html' => 'Ingresa este codigo',
+        'datos_extraidos' => json_encode(['3002']),
+        'fecha_procesado_db' => now(),
+    ]);
+
+    $this->postJson('/api/v1/netcode/buscar-email', [
+        'email' => 'ahora@example.com',
+        'subject' => 'acceso4',
+    ])
+        ->assertOk()
+        ->assertJsonPath('status', 'success')
+        ->assertJsonPath('seconds_remaining', 420)
+        ->assertJsonPath('processed_at', '2026-08-16 05:20:00')
+        ->assertJsonPath('expires_at', '2026-08-16 05:27:00')
+        ->assertJsonPath('validity_source', 'processed_at');
+
+    Carbon\Carbon::setTestNow();
+});
+
+it('returns 360 seconds remaining when a code was processed sixty seconds ago', function () {
+    Carbon\Carbon::setTestNow(Carbon\Carbon::create(2026, 8, 16, 5, 21, 0, 'America/Lima'));
+
+    EmailPedido::query()->create([
+        'destinatario_original' => 'sesenta@example.com',
+        'asunto' => 'Netflix: tu codigo',
+        'remitente' => 'Netflix',
+        'fecha_recibido' => now()->subSeconds(60),
+        'cuerpo_html' => 'Ingresa este codigo',
+        'datos_extraidos' => json_encode(['3002']),
+        'fecha_procesado_db' => now()->subSeconds(60),
+    ]);
+
+    $this->postJson('/api/v1/netcode/buscar-email', [
+        'email' => 'sesenta@example.com',
+        'subject' => 'acceso4',
+    ])
+        ->assertOk()
+        ->assertJsonPath('status', 'success')
+        ->assertJsonPath('seconds_remaining', 360);
+
+    Carbon\Carbon::setTestNow();
+});
+
+it('returns 60 seconds remaining when a code was processed three hundred sixty seconds ago', function () {
+    Carbon\Carbon::setTestNow(Carbon\Carbon::create(2026, 8, 16, 5, 26, 0, 'America/Lima'));
+
+    EmailPedido::query()->create([
+        'destinatario_original' => 'trescientos@example.com',
+        'asunto' => 'Netflix: tu codigo',
+        'remitente' => 'Netflix',
+        'fecha_recibido' => now()->subSeconds(360),
+        'cuerpo_html' => 'Ingresa este codigo',
+        'datos_extraidos' => json_encode(['3002']),
+        'fecha_procesado_db' => now()->subSeconds(360),
+    ]);
+
+    $this->postJson('/api/v1/netcode/buscar-email', [
+        'email' => 'trescientos@example.com',
+        'subject' => 'acceso4',
+    ])
+        ->assertOk()
+        ->assertJsonPath('status', 'success')
+        ->assertJsonPath('seconds_remaining', 60);
+
+    Carbon\Carbon::setTestNow();
+});
+
+it('does not return a code processed exactly four hundred twenty seconds ago', function () {
+    Carbon\Carbon::setTestNow(Carbon\Carbon::create(2026, 8, 16, 5, 27, 0, 'America/Lima'));
+
+    EmailPedido::query()->create([
+        'destinatario_original' => 'limite@example.com',
+        'asunto' => 'Netflix: tu codigo',
+        'remitente' => 'Netflix',
+        'fecha_recibido' => now()->subSeconds(420),
+        'cuerpo_html' => 'Ingresa este codigo',
+        'datos_extraidos' => json_encode(['3002']),
+        'fecha_procesado_db' => now()->subSeconds(420),
+    ]);
+
+    $this->postJson('/api/v1/netcode/buscar-email', [
+        'email' => 'limite@example.com',
+        'subject' => 'acceso4',
+    ])
+        ->assertOk()
+        ->assertJsonPath('status', 'not_found')
+        ->assertJsonPath('found', false);
+
+    Carbon\Carbon::setTestNow();
+});
+
+it('does not return a code processed more than four hundred twenty seconds ago', function () {
+    Carbon\Carbon::setTestNow(Carbon\Carbon::create(2026, 8, 16, 5, 27, 1, 'America/Lima'));
+
+    EmailPedido::query()->create([
+        'destinatario_original' => 'expirado421@example.com',
+        'asunto' => 'Netflix: tu codigo',
+        'remitente' => 'Netflix',
+        'fecha_recibido' => now()->subSeconds(421),
+        'cuerpo_html' => 'Ingresa este codigo',
+        'datos_extraidos' => json_encode(['3002']),
+        'fecha_procesado_db' => now()->subSeconds(421),
+    ]);
+
+    $this->postJson('/api/v1/netcode/buscar-email', [
+        'email' => 'expirado421@example.com',
+        'subject' => 'acceso4',
+    ])
+        ->assertOk()
+        ->assertJsonPath('status', 'not_found')
+        ->assertJsonPath('found', false);
+
+    Carbon\Carbon::setTestNow();
+});
+
+it('never returns seconds remaining above four hundred twenty or below zero', function () {
+    Carbon\Carbon::setTestNow(Carbon\Carbon::create(2026, 8, 16, 5, 21, 0, 'America/Lima'));
+
+    EmailPedido::query()->create([
+        'destinatario_original' => 'acotado@example.com',
+        'asunto' => 'Netflix: tu codigo',
+        'remitente' => 'Netflix',
+        'fecha_recibido' => now()->subSeconds(60),
+        'cuerpo_html' => 'Ingresa este codigo',
+        'datos_extraidos' => json_encode(['3002']),
+        'fecha_procesado_db' => now()->subSeconds(60),
+    ]);
+
+    $response = $this->postJson('/api/v1/netcode/buscar-email', [
+        'email' => 'acotado@example.com',
+        'subject' => 'acceso4',
+    ])
+        ->assertOk()
+        ->json();
+
+    expect($response['seconds_remaining'])->toBeGreaterThanOrEqual(0);
+    expect($response['seconds_remaining'])->toBeLessThanOrEqual(420);
+
+    Carbon\Carbon::setTestNow();
+});
+
 it('validates netflix profile access through the versioned api', function () {
     $product = Producto::query()->create([
         'nombre' => 'Netflix Premium',
