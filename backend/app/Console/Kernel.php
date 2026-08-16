@@ -23,9 +23,8 @@ class Kernel extends ConsoleKernel
         |--------------------------------------------------------------------------
         | CRON JOB: Procesar Correos IMAP
         |--------------------------------------------------------------------------
-        | Este comando se ejecutará cada 1 minuto.
-        | Es el reemplazo de tu cron antiguo:
-        | https://igruben.lat/procesar_emails?token=mtm256
+        | Cron externo recomendado:
+        | https://igruben.lat/cron/procesar-emails?token=TU_CRON_TOKEN
         |
         | Ahora Laravel ejecuta el comando:
         |     php artisan emails:procesar-pedidos

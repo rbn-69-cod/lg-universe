@@ -45,7 +45,13 @@ Antes del certificado real, Nginx puede arrancar con un certificado temporal gen
 CERTBOT_EMAIL=TU_CORREO_REAL sh scripts/issue-certificate.sh
 ```
 
-No usar `certbot --nginx` en el host porque Nginx esta dentro del contenedor `lg-nginx`. El volumen de challenges ACME lo escribe el servicio `certbot`; Nginx lo monta como solo lectura.
+No usar `certbot --nginx` en el host porque Nginx esta dentro del contenedor `lg-nginx`. El volumen de challenges ACME lo escribe el servicio `certbot`; Nginx lo monta como solo lectura. El script valida el challenge publico por HTTP antes de pedir el certificado real.
+
+Cron-job.org debe llamar externamente a:
+
+```text
+https://igruben.lat/cron/procesar-emails?token=TU_CRON_TOKEN
+```
 
 6. Ejecutar migraciones solo tras backup:
 

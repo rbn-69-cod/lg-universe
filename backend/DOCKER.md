@@ -95,7 +95,13 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 CERTBOT_EMAIL=TU_CORREO_REAL sh scripts/issue-certificate.sh
 ```
 
-`scripts/issue-certificate.sh` aparta el certificado temporal autofirmado si existe en `live/igruben.lat` sin una configuracion `renewal/igruben.lat.conf`, crea el challenge webroot desde el servicio `certbot` y emite la lineage real de Let's Encrypt. No elimina volumenes ni toca MySQL.
+`scripts/issue-certificate.sh` aparta cualquier certificado servido que no sea Let's Encrypt, lo deja como backup `bootstrap-*` dentro del volumen, crea el challenge webroot desde el servicio `certbot`, verifica que `http://igruben.lat/.well-known/acme-challenge/...` sea publico y recien entonces emite la lineage real de Let's Encrypt. No elimina volumenes ni toca MySQL.
+
+Cron-job.org es externo. El endpoint que debe llamar cada minuto es:
+
+```text
+https://igruben.lat/cron/procesar-emails?token=TU_CRON_TOKEN
+```
 
 No agregues `www.igruben.lat` al certificado hasta verificar que su DNS exista y apunte a la VM.
 
