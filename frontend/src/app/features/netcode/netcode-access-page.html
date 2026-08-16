@@ -162,6 +162,7 @@
 
     @if (viewState() === 'scan') {
       <section class="scan active">
+        <div class="attempt-badge">{{ searchAttemptLabel() }}</div>
         <div class="timer">{{ timeLeft() }}</div>
         <p>{{ scanStatus() }}</p>
         <div class="scan-actions">
@@ -171,8 +172,20 @@
       </section>
     }
 
+    @if (canRetrySearch()) {
+      <section class="scan active retry-panel">
+        <div class="attempt-badge">Busqueda {{ searchAttempt() }} de 2</div>
+        <p>No encontramos el codigo en la primera busqueda.</p>
+        <button class="ghost retry-btn" type="button" [disabled]="isSearching()" (click)="retrySearch()">
+          <svg lucideRefreshCcw size="17" />
+          REINTENTAR BUSQUEDA
+        </button>
+      </section>
+    }
+
     @if (viewState() === 'result') {
       <section class="result active">
+        <div class="attempt-badge">{{ searchAttemptLabel() }}</div>
         <div class="result-value" [class.code]="!resultIsLink()" [class.link]="resultIsLink()">{{ resultValue() }}</div>
         <p>{{ resultIsLink() ? 'Abre el enlace cuanto antes.' : 'Copia el codigo y usalo antes de que venza.' }}</p>
         <div class="scan-actions">

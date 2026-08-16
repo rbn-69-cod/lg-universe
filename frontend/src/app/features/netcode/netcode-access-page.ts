@@ -19,12 +19,14 @@ import {
   NetflixProfileValidationResponse,
   Tutorial,
 } from './netcode-api';
+import Swal from 'sweetalert2';
 
 type AccessStep = 'whatsapp' | 'nombre' | 'pin' | 'account';
 type ViewState = 'access' | 'scan' | 'result';
 
 const MAX_TIME = 60;
 const POLL_MS = 4000;
+const MAX_SEARCH_ATTEMPTS = 2;
 
 @Component({
   selector: 'app-netcode-access-page',
@@ -64,11 +66,24 @@ export class NetcodeAccessPage {
   readonly scanStatus = signal('Buscando correo reciente...');
   readonly resultValue = signal('');
   readonly resultType = signal('');
+  readonly searchAttempt = signal(0);
+  readonly searchFinishedWithoutResult = signal(false);
+  readonly isSearching = signal(false);
 
   private countdown: number | null = null;
   private polling: number | null = null;
+  private successfulPollInCurrentSearch = false;
 
   readonly resultIsLink = computed(() => /^https?:\/\//i.test(this.resultValue()));
+  readonly searchAttemptLabel = computed(() => `Busqueda ${Math.max(this.searchAttempt(), 1)} de ${MAX_SEARCH_ATTEMPTS}`);
+  readonly canRetrySearch = computed(
+    () =>
+      this.searchFinishedWithoutResult() &&
+      !this.isSearching() &&
+      !this.resultValue() &&
+      this.searchAttempt() > 0 &&
+      this.searchAttempt() < MAX_SEARCH_ATTEMPTS
+  );
 
   constructor() {
     this.api.tutorials().subscribe({
@@ -160,10 +175,11 @@ export class NetcodeAccessPage {
         this.account.set(data);
         this.step.set('account');
         this.showToast('Validado');
+        this.resetCodeSearchState(true);
         window.setTimeout(() => this.startAccessCodeSearch(false), 200);
       },
       error: (error) => {
-        window.alert(`Validacion fallida\n\n${error?.error?.message || 'Acceso incorrecto.'}`);
+        this.showError('Validacion fallida', error?.error?.message || 'Acceso incorrecto.');
       },
     });
   }
@@ -180,33 +196,83 @@ export class NetcodeAccessPage {
     this.profileName.set((name ?? '').toUpperCase());
   }
 
-  startAccessCodeSearch(confirmBeforeSearch = true): void {
+  async startAccessCodeSearch(confirmBeforeSearch = true): Promise<void> {
     const email = this.account()?.cuenta?.email;
     if (!email) {
       this.showToast('Primero valida WhatsApp, nombre y PIN');
       return;
     }
 
-    if (confirmBeforeSearch) {
-      const accepted = window.confirm('Inicio sesion codigo 4 digitos\n\nConfirma que Netflix ya pidio el codigo de login.');
-      if (!accepted) return;
+    if (this.isSearching()) return;
+
+    if (this.searchAttempt() >= MAX_SEARCH_ATTEMPTS) {
+      await this.showFinalNotFound();
+      return;
     }
 
+    if (confirmBeforeSearch) {
+      const accepted = await Swal.fire({
+        title: 'Buscar codigo',
+        text: 'Confirma que Netflix ya pidio el codigo de login.',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Buscar codigo',
+        cancelButtonText: 'Cancelar',
+        background: '#111426',
+        color: '#fff',
+      });
+
+      if (!accepted.isConfirmed) return;
+    }
+
+    this.startSearch(email);
+  }
+
+  retrySearch(): void {
+    if (!this.canRetrySearch()) return;
+
+    const email = this.account()?.cuenta?.email;
+    if (!email) {
+      this.showToast('Primero valida WhatsApp, nombre y PIN');
+      return;
+    }
+
+    this.startSearch(email);
+  }
+
+  private startSearch(email: string): void {
+    this.stop();
+    this.successfulPollInCurrentSearch = false;
+    this.searchAttempt.update((attempt) => Math.min(attempt + 1, MAX_SEARCH_ATTEMPTS));
+    this.searchFinishedWithoutResult.set(false);
+    this.isSearching.set(true);
     this.resultValue.set('');
     this.resultType.set('');
     this.timeLeft.set(MAX_TIME);
     this.scanStatus.set('Buscando inicio sesion codigo 4 digitos...');
     this.viewState.set('scan');
 
-    this.tick();
-    this.checkServer(email);
+    void Swal.fire({
+      title: 'Buscando codigo...',
+      text: 'Revisando correos recientes...',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      background: '#111426',
+      color: '#fff',
+      didOpen: () => Swal.showLoading(),
+      timer: 1300,
+    });
+
     this.countdown = window.setInterval(() => this.tick(), 1000);
     this.polling = window.setInterval(() => this.checkServer(email), POLL_MS);
+    this.tick();
+    this.checkServer(email);
   }
 
   cancelSearch(): void {
     this.stop();
-    this.resultValue.set('');
+    this.resetCodeSearchState(false);
     this.viewState.set('access');
     this.step.set('account');
     this.showToast('Busqueda cancelada');
@@ -214,7 +280,7 @@ export class NetcodeAccessPage {
 
   resetResult(): void {
     this.stop();
-    this.resultValue.set('');
+    this.resetCodeSearchState(true);
     this.viewState.set('access');
     this.step.set('account');
   }
@@ -230,7 +296,7 @@ export class NetcodeAccessPage {
     navigator.clipboard
       ?.writeText(value)
       .then(() => this.showToast('Copiado'))
-      .catch(() => window.alert(value));
+      .catch(() => this.showCodeFound(value));
   }
 
   openTutorial(key: string): void {
@@ -249,21 +315,36 @@ export class NetcodeAccessPage {
   private failed(step: NetcodeValidationStep, message: string): void {
     const key = step as 'whatsapp' | 'nombre' | 'pin';
     this.attempts.update((current) => ({ ...current, [key]: current[key] + 1 }));
-    window.alert(`Validacion fallida\n\n${message}`);
+    this.showError('Validacion fallida', message);
   }
 
   private checkServer(email: string): void {
     this.api.searchEmail(email, 'acceso4').subscribe({
       next: (data) => {
+        this.successfulPollInCurrentSearch = true;
         if (data.status === 'success' && data.valor_extraido) {
           this.stop();
-          this.resultValue.set(String(data.valor_extraido).trim());
+          const value = String(data.valor_extraido).trim();
+          this.resultValue.set(value);
           this.resultType.set(data.tipo || '');
+          this.searchFinishedWithoutResult.set(false);
+          this.isSearching.set(false);
           this.viewState.set('result');
+          void this.showCodeFound(value);
         }
       },
-      error: () => {
-        // Existing screen keeps polling silently on transient errors.
+      error: async () => {
+        this.stop();
+        this.isSearching.set(false);
+        this.searchFinishedWithoutResult.set(false);
+
+        if (!this.successfulPollInCurrentSearch) {
+          this.searchAttempt.update((attempt) => Math.max(attempt - 1, 0));
+        }
+
+        await this.showError('Error de conexion', 'No pudimos consultar los codigos. Intentalo nuevamente.');
+        this.viewState.set('access');
+        this.step.set('account');
       },
     });
   }
@@ -275,8 +356,11 @@ export class NetcodeAccessPage {
     if (current === 12) this.scanStatus.set('Ultima busqueda...');
     if (current <= 0) {
       this.stop();
-      window.alert('No encontrado\n\nReenvia el correo desde Netflix e intenta otra vez.');
-      this.resetResult();
+      this.isSearching.set(false);
+      this.searchFinishedWithoutResult.set(true);
+      this.viewState.set('access');
+      this.step.set('account');
+      void this.handleSearchTimeout();
       return;
     }
     this.timeLeft.set(current - 1);
@@ -287,6 +371,88 @@ export class NetcodeAccessPage {
     if (this.polling) window.clearInterval(this.polling);
     this.countdown = null;
     this.polling = null;
+  }
+
+  private resetCodeSearchState(resetAttempts: boolean): void {
+    this.resultValue.set('');
+    this.resultType.set('');
+    this.searchFinishedWithoutResult.set(false);
+    this.isSearching.set(false);
+    this.successfulPollInCurrentSearch = false;
+    this.timeLeft.set(MAX_TIME);
+    this.scanStatus.set('Buscando correo reciente...');
+    if (resetAttempts) this.searchAttempt.set(0);
+  }
+
+  private async handleSearchTimeout(): Promise<void> {
+    if (this.searchAttempt() < MAX_SEARCH_ATTEMPTS) {
+      const response = await Swal.fire({
+        title: 'No encontramos el codigo',
+        text: 'Puedes realizar una segunda busqueda.',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Reintentar busqueda',
+        cancelButtonText: 'Cerrar',
+        background: '#111426',
+        color: '#fff',
+      });
+
+      if (response.isConfirmed) {
+        this.retrySearch();
+        return;
+      }
+
+      return;
+    }
+
+    await this.showFinalNotFound();
+  }
+
+  private async showFinalNotFound(): Promise<void> {
+    await Swal.fire({
+      title: 'No encontramos un codigo valido',
+      text: 'Se realizaron las 2 busquedas disponibles.',
+      icon: 'error',
+      confirmButtonText: 'Entendido',
+      background: '#111426',
+      color: '#fff',
+    });
+  }
+
+  private async showCodeFound(value: string): Promise<void> {
+    const response = await Swal.fire({
+      title: 'Codigo encontrado',
+      html: `<div style="font-size:44px;font-weight:900;letter-spacing:.18em;color:#35f7a4">${this.escapeHtml(value)}</div>`,
+      icon: 'success',
+      confirmButtonText: this.resultIsLink() ? 'Cerrar' : 'Copiar codigo',
+      background: '#111426',
+      color: '#fff',
+    });
+
+    if (response.isConfirmed && !this.resultIsLink()) {
+      await navigator.clipboard?.writeText(value).catch(() => undefined);
+      this.showToast('Copiado');
+    }
+  }
+
+  private async showError(title: string, message: string): Promise<void> {
+    await Swal.fire({
+      title,
+      text: message,
+      icon: 'error',
+      confirmButtonText: 'Entendido',
+      background: '#111426',
+      color: '#fff',
+    });
+  }
+
+  private escapeHtml(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   private tutorialFor(key: string): Tutorial {

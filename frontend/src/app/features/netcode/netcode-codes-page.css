@@ -268,6 +268,36 @@ input {
   text-align: center;
 }
 
+.attempt-badge {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto 12px;
+  border: 1px solid rgba(255, 209, 102, 0.42);
+  border-radius: 999px;
+  padding: 7px 12px;
+  color: #ffd166;
+  background: rgba(255, 209, 102, 0.1);
+  font-size: 12px;
+  font-weight: 900;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.retry-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.retry-btn {
+  width: 100%;
+}
+
+.ghost:disabled,
+.danger-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .danger-btn {
   color: #ff8fa1;
   border-color: rgba(255, 73, 104, 0.46);

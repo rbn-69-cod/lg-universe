@@ -20,9 +20,16 @@ class ApiBuscarEmailController extends Controller
             $emailDestinatario = mb_strtolower(trim($request->email));
             $tipoSolicitud = trim($request->subject);
             $retentionMinutes = min(7, max(1, (int) config('imap.retention_minutes', 7)));
+            $validFrom = now()->subMinutes($retentionMinutes);
 
             $query = EmailPedido::whereRaw('LOWER(destinatario_original) = ?', [$emailDestinatario])
-                ->where('fecha_recibido', '>=', now()->subMinutes($retentionMinutes));
+                ->where(function ($q) use ($validFrom) {
+                    $q->where('fecha_procesado_db', '>=', $validFrom)
+                        ->orWhere(function ($fallback) use ($validFrom) {
+                            $fallback->whereNull('fecha_procesado_db')
+                                ->where('fecha_recibido', '>=', $validFrom);
+                        });
+                });
 
             $query->where(function ($q) use ($tipoSolicitud) {
                 if ($tipoSolicitud === 'acceso4') {
@@ -54,7 +61,8 @@ class ApiBuscarEmailController extends Controller
                     ->orWhere('datos_extraidos', 'LIKE', '%travel/verify%');
             });
 
-            $emailDataModel = $query->orderBy('fecha_recibido', 'desc')
+            $emailDataModel = $query->orderBy('fecha_procesado_db', 'desc')
+                ->orderBy('fecha_recibido', 'desc')
                 ->orderBy('id', 'desc')
                 ->first();
 

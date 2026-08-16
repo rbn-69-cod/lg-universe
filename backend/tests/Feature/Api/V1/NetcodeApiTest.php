@@ -37,6 +37,29 @@ it('searches extracted netcode email values through the versioned api', function
         ->assertJsonPath('tipo', 'link');
 });
 
+it('finds a 4 digit login code by processed time even when received time is older', function () {
+    config()->set('imap.retention_minutes', 7);
+
+    EmailPedido::query()->create([
+        'destinatario_original' => 'abngelco120@igruben.lat',
+        'asunto' => 'Netflix: Tu codigo de inicio de sesion',
+        'remitente' => 'Netflix',
+        'fecha_recibido' => now()->subHour(),
+        'cuerpo_html' => 'Ingresa este codigo para iniciar sesion en Netflix.',
+        'datos_extraidos' => json_encode(['1234']),
+        'fecha_procesado_db' => now()->subMinutes(2),
+    ]);
+
+    $this->postJson('/api/v1/netcode/buscar-email', [
+        'email' => 'ABNGELCO120@IGRUBEN.LAT',
+        'subject' => 'acceso4',
+    ])
+        ->assertOk()
+        ->assertJsonPath('status', 'success')
+        ->assertJsonPath('valor_extraido', '1234')
+        ->assertJsonPath('tipo', 'codigo');
+});
+
 it('does not expose account or table bot links through the public netcode search', function () {
     $product = Producto::query()->create([
         'nombre' => 'Netflix Premium',
