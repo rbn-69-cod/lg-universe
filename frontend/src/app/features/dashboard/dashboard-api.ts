@@ -125,10 +125,19 @@ export interface DashboardImapItem {
   valor_extraido: string;
   codigo: string | null;
   action_url: string | null;
+  has_client_value: boolean;
+  client_visible: boolean;
+  dashboard_state: 'visible_cliente' | 'solo_dashboard_expirado' | 'solo_dashboard_revision';
+  dashboard_state_label: string;
+  dashboard_state_tone: 'ok' | 'warn' | 'danger';
   extraction_status: string;
   found_links: string[];
   fecha_recibido: string | null;
   fecha_procesado_db: string | null;
+  validity_start_at: string | null;
+  expires_at: string | null;
+  seconds_remaining: number;
+  dashboard_age_seconds: number;
   raw_email: string | null;
   html_body_original: string | null;
   text_body_original: string | null;
@@ -148,8 +157,12 @@ export interface DashboardImapStatus {
   cron_token_masked: string | null;
   stored_count: number;
   stored_recent_count: number;
+  client_visible_count: number;
+  dashboard_only_count: number;
   last_processed_at: string | null;
   recent_items: DashboardImapItem[];
+  client_visible_items: DashboardImapItem[];
+  dashboard_only_items: DashboardImapItem[];
 }
 
 export interface DashboardTutorial {
@@ -448,6 +461,12 @@ export class DashboardApi {
 
   updateAccountBotLinks(id: number, payload: AccountBotLinksPayload): Observable<DashboardResponse> {
     return this.http.put<DashboardResponse>(`/api/v1/dashboard/accounts/${id}/bot-links`, payload, {
+      headers: this.writeHeaders(),
+    }).pipe(catchError((error) => this.handle(error)));
+  }
+
+  clearImapDashboardOnlyHistory(): Observable<DashboardResponse & { deleted: number; message: string }> {
+    return this.http.post<DashboardResponse & { deleted: number; message: string }>('/api/v1/dashboard/imap-history/clear', {}, {
       headers: this.writeHeaders(),
     }).pipe(catchError((error) => this.handle(error)));
   }

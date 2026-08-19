@@ -679,6 +679,62 @@ select:focus-visible {
   align-items: center;
 }
 
+.duration-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.duration-editor-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(39, 224, 255, 0.18);
+  border-radius: 16px;
+  background: rgba(39, 224, 255, 0.05);
+}
+
+.duration-editor-card.inactive {
+  opacity: 0.72;
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.duration-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.duration-editor-head b {
+  display: block;
+  font-size: 18px;
+}
+
+.duration-editor-head small {
+  display: block;
+  margin-top: 4px;
+  color: rgba(248, 251, 255, 0.62);
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.switch span {
+  color: rgba(248, 251, 255, 0.8);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
 .payment-editor {
   display: grid;
   gap: 16px;
@@ -1177,6 +1233,12 @@ select:focus-visible {
   flex-wrap: wrap;
 }
 
+.section-head.subhead {
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 0;
+}
+
 .accounts {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1297,6 +1359,12 @@ th {
   color: #ffd166;
   border-color: rgba(255, 209, 102, 0.24);
   background: rgba(255, 209, 102, 0.08);
+}
+
+.tag.danger {
+  color: #ff9aac;
+  border-color: rgba(255, 61, 136, 0.28);
+  background: rgba(255, 61, 136, 0.1);
 }
 
 .profile {
@@ -1454,6 +1522,7 @@ td small {
   .quick,
   .platform-strip,
   .imap-grid,
+  .duration-editor-grid,
   .tutorial-grid,
   .catalog-grid,
   .payment-methods,
@@ -1473,6 +1542,7 @@ td small {
   .catalog-editor,
   .payment-fields,
   .imap-settings,
+  .duration-editor-grid,
   .imap-settings .wide,
   .catalog-editor .wide,
   .payment-fields .wide,
@@ -1528,7 +1598,8 @@ td small {
   .payment-fields,
   .imap-settings,
   .catalog-editor,
-  .range-form {
+  .range-form,
+  .duration-editor-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1572,6 +1643,7 @@ td small {
   .quick,
   .platform-strip,
   .imap-grid,
+  .duration-editor-grid,
   .tutorial-grid,
   .catalog-grid,
   .payment-methods,

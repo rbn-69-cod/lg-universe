@@ -90,7 +90,7 @@ test('active excel tables cannot overlap in the same source sheet even across pl
         'archivo_url' => 'https://example.com/catalog.xlsx',
         'bot_codigo_url' => '',
         'bot_soporte_url' => '',
-        'hoja_excel' => 'NETFLIX PREMUM',
+        'hoja_excel' => 'NETFLIX',
         'fila_inicio' => 3,
         'fila_fin' => 77,
         'columna_perfil' => 'F',

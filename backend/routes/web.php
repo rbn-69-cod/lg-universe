@@ -135,6 +135,8 @@ Route::middleware(['auth', 'verified', 'admin'])->group(function () {
         ->name('api.v1.dashboard.admins.destroy');
     Route::post('/api/v1/dashboard/imported-data/clear', [DashboardApiController::class, 'clearImportedData'])
         ->name('api.v1.dashboard.imported-data.clear');
+    Route::post('/api/v1/dashboard/imap-history/clear', [DashboardApiController::class, 'clearDashboardOnlyEmails'])
+        ->name('api.v1.dashboard.imap-history.clear');
     Route::post('/api/v1/dashboard/excel-ranges', [DashboardApiController::class, 'storeRange'])
         ->name('api.v1.dashboard.excel-ranges.store');
     Route::put('/api/v1/dashboard/excel-ranges/{excelImportRange}', [DashboardApiController::class, 'updateRange'])

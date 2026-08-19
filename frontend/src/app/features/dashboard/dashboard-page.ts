@@ -82,6 +82,7 @@ export class DashboardPage {
   readonly savingPayments = signal(false);
   readonly uploadingPaymentQr = signal<number | null>(null);
   readonly clearingData = signal(false);
+  readonly clearingDashboardOnlyEmails = signal(false);
   readonly savingRange = signal(false);
   readonly savingAccountBots = signal(false);
   readonly syncingRangeId = signal<number | null>(null);
@@ -90,7 +91,7 @@ export class DashboardPage {
   readonly editingAdminId = signal<number | null>(null);
   readonly editingAccountId = signal<number | null>(null);
   readonly activeSection = signal<DashboardSection>('overview');
-  readonly selectedPlatform = signal('Netflix Premium');
+  readonly selectedPlatform = signal('Netflix');
   readonly message = signal('');
   readonly error = signal('');
   readonly rangeForm = signal<DashboardRangePayload>(this.emptyRange());
@@ -116,6 +117,8 @@ export class DashboardPage {
   readonly admins = computed(() => this.data()?.admins ?? []);
   readonly paymentSettings = computed(() => this.data()?.payment_settings ?? this.emptyPaymentSettings());
   readonly imap = computed(() => this.data()?.imap ?? null);
+  readonly imapClientVisibleItems = computed(() => this.imap()?.client_visible_items ?? []);
+  readonly imapDashboardOnlyItems = computed(() => this.imap()?.dashboard_only_items ?? []);
   readonly tutorials = computed(() => this.data()?.tutorials ?? {});
   readonly tutorialLabels = computed(() => this.data()?.tutorial_labels ?? {});
   readonly tutorialEntries = computed(() => Object.entries(this.tutorials()));
@@ -126,12 +129,7 @@ export class DashboardPage {
     for (const profile of this.profiles()) if (profile.source_platforma) names.add(profile.source_platforma);
     for (const range of this.ranges()) if (range.plataforma) names.add(range.plataforma);
 
-    return Array.from(names).sort((a, b) => {
-      if (a === 'Netflix Premium') return -1;
-      if (b === 'Netflix Premium') return 1;
-
-      return a.localeCompare(b);
-    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
   });
   readonly platformAccounts = computed(() => this.accounts().filter((account) => account.source_platforma === this.selectedPlatform()));
   readonly platformProfiles = computed(() => this.profiles().filter((profile) => profile.source_platforma === this.selectedPlatform()));
@@ -228,7 +226,7 @@ export class DashboardPage {
         this.fillTutorialForm();
         this.fillPaymentForm();
         if (!this.platforms().includes(this.selectedPlatform())) {
-          this.selectedPlatform.set(this.platforms()[0] ?? 'Netflix Premium');
+          this.selectedPlatform.set(this.platforms()[0] ?? 'Netflix');
         }
         this.loading.set(false);
       },
@@ -786,7 +784,7 @@ export class DashboardPage {
 
     navigator.clipboard
       ?.writeText(url)
-      .then(() => this.message.set('URL del cron copiada.'))
+      .then(() => this.success('URL del cron copiada.'))
       .catch(() => window.prompt('URL del cron', url));
   }
 
@@ -795,8 +793,32 @@ export class DashboardPage {
 
     navigator.clipboard
       ?.writeText(value)
-      .then(() => this.message.set(`${label} copiado.`))
+      .then(() => this.success(`${label} copiado.`))
       .catch(() => window.prompt(label, value));
+  }
+
+  clearDashboardOnlyEmails(): void {
+    if (this.clearingDashboardOnlyEmails()) return;
+
+    this.confirmDanger(
+      'Limpiar solo dashboard',
+      'Se eliminaran los correos que ya no son visibles para el cliente y solo quedan como historial en dashboard.'
+    ).then((confirmed) => {
+      if (!confirmed) return;
+
+      this.clearingDashboardOnlyEmails.set(true);
+      this.api.clearImapDashboardOnlyHistory().subscribe({
+        next: (response) => {
+          this.data.set(response.data);
+          this.success(response.message || 'Historial solo-dashboard limpiado.');
+          this.clearingDashboardOnlyEmails.set(false);
+        },
+        error: (error) => {
+          this.fail(error?.error?.message || 'No se pudo limpiar el historial solo-dashboard.');
+          this.clearingDashboardOnlyEmails.set(false);
+        },
+      });
+    });
   }
 
   saveImapSettings(): void {
@@ -868,6 +890,28 @@ export class DashboardPage {
     if (!url) return;
 
     this.openUrl(url);
+  }
+
+  durationLabel(seconds: number): string {
+    const safeSeconds = Math.max(0, Math.floor(seconds));
+    const hours = Math.floor(safeSeconds / 3600);
+    const minutes = Math.floor((safeSeconds % 3600) / 60);
+    const remainder = safeSeconds % 60;
+
+    if (hours > 0) {
+      return `${hours}h ${minutes.toString().padStart(2, '0')}m`;
+    }
+
+    return `${minutes.toString().padStart(2, '0')}:${remainder.toString().padStart(2, '0')}`;
+  }
+
+  imapValueLabel(item: DashboardImapItem): string {
+    if (item.codigo) return `Codigo: ${item.codigo}`;
+    if (item.action_url) return 'Link extraido';
+    if (item.valor_extraido) return item.valor_extraido;
+    if (item.found_links.length > 0) return `${item.found_links.length} link(s) detectado(s)`;
+
+    return 'Sin extraccion valida';
   }
 
   showImapOriginal(item: DashboardImapItem): void {
@@ -993,13 +1037,13 @@ export class DashboardPage {
 
   private emptyRange(): DashboardRangePayload {
     return {
-      plataforma: 'Netflix Premium',
+      plataforma: 'Netflix',
       nombre_tabla: '',
       producto_slug: '',
       archivo_url: '',
       bot_codigo_url: '',
       bot_soporte_url: '',
-      hoja_excel: 'NETFLIX PREMUM',
+      hoja_excel: 'NETFLIX',
       fila_inicio: 3,
       fila_fin: 77,
       columna_perfil: 'F',

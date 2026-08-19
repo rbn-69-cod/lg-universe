@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Cuenta;
+use App\Models\EmailPedido;
 use App\Models\ExcelImportRange;
 use App\Models\Perfil;
 use App\Models\Plataforma;
@@ -503,6 +504,28 @@ class DashboardApiController extends Controller
                 'perfiles' => $profileIds->count(),
                 'cuentas' => $accountIds->count(),
             ],
+            'data' => $this->dashboardData->api(),
+        ]);
+    }
+
+    public function clearDashboardOnlyEmails(): JsonResponse
+    {
+        $cutoff = now()->subMinutes(min(7, max(1, (int) config('imap.retention_minutes', 7))));
+
+        $deleted = EmailPedido::query()
+            ->where(function ($query) use ($cutoff) {
+                $query->whereNotNull('fecha_procesado_db')
+                    ->where('fecha_procesado_db', '<=', $cutoff);
+            })
+            ->orWhere(function ($query) use ($cutoff) {
+                $query->whereNull('fecha_procesado_db')
+                    ->where('fecha_recibido', '<=', $cutoff);
+            })
+            ->delete();
+
+        return response()->json([
+            'message' => "Se eliminaron {$deleted} correo(s) que ya no eran visibles para el cliente.",
+            'deleted' => $deleted,
             'data' => $this->dashboardData->api(),
         ]);
     }

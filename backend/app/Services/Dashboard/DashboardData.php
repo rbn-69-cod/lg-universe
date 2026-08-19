@@ -10,6 +10,7 @@ use App\Models\Plataforma;
 use App\Models\User;
 use App\Support\PaymentSettings;
 use App\Support\TutorialContent;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
 
@@ -250,6 +251,29 @@ class DashboardData
         $token = (string) config('services.cron.token', '');
         $cronUrl = route('cron.procesar-emails', ['token' => $token]);
         $historyFrom = now()->subDay();
+        $recentItems = EmailPedido::query()
+            ->where(function ($query) use ($historyFrom) {
+                $query->whereNotNull('fecha_procesado_db')
+                    ->where('fecha_procesado_db', '>=', $historyFrom);
+            })
+            ->orWhere(function ($query) use ($historyFrom) {
+                $query->whereNull('fecha_procesado_db')
+                    ->where('fecha_recibido', '>=', $historyFrom);
+            })
+            ->orderByDesc('fecha_procesado_db')
+            ->orderByDesc('fecha_recibido')
+            ->orderByDesc('id')
+            ->get()
+            ->map(fn (EmailPedido $email) => $this->imapItem($email, $retention))
+            ->values();
+
+        $clientVisibleItems = $recentItems
+            ->where('client_visible', true)
+            ->values();
+
+        $dashboardOnlyItems = $recentItems
+            ->where('client_visible', false)
+            ->values();
 
         return [
             'configured' => (string) config('imap.username', '') !== '' && (string) config('imap.password', '') !== '',
@@ -264,52 +288,69 @@ class DashboardData
             'cron_url_masked' => $token === '' ? null : str_replace($token, '***', $cronUrl),
             'cron_token_masked' => $token === '' ? null : substr($token, 0, 3).'***',
             'stored_count' => EmailPedido::query()->count(),
-            'stored_recent_count' => EmailPedido::query()
-                ->where(function ($query) use ($historyFrom) {
-                    $query->whereNotNull('fecha_procesado_db')
-                        ->where('fecha_procesado_db', '>=', $historyFrom);
-                })
-                ->orWhere(function ($query) use ($historyFrom) {
-                    $query->whereNull('fecha_procesado_db')
-                        ->where('fecha_recibido', '>=', $historyFrom);
-                })
-                ->count(),
+            'stored_recent_count' => $recentItems->count(),
+            'client_visible_count' => $clientVisibleItems->count(),
+            'dashboard_only_count' => $dashboardOnlyItems->count(),
             'last_processed_at' => $this->dateTimeString(EmailPedido::query()->max('fecha_procesado_db')),
-            'recent_items' => EmailPedido::query()
-                ->where(function ($query) use ($historyFrom) {
-                    $query->whereNotNull('fecha_procesado_db')
-                        ->where('fecha_procesado_db', '>=', $historyFrom);
-                })
-                ->orWhere(function ($query) use ($historyFrom) {
-                    $query->whereNull('fecha_procesado_db')
-                        ->where('fecha_recibido', '>=', $historyFrom);
-                })
-                ->orderByDesc('fecha_procesado_db')
-                ->orderByDesc('fecha_recibido')
-                ->orderByDesc('id')
-                ->get()
-                ->map(fn (EmailPedido $email) => [
-                    'id' => $email->id,
-                    'message_id' => $email->message_id,
-                    'thread_id' => $email->thread_id,
-                    'imap_uid' => $email->imap_uid,
-                    'destinatario_original' => $email->destinatario_original,
-                    'remitente' => $email->remitente,
-                    'asunto' => $email->asunto,
-                    'tipo' => $this->storedValueType($email->datos_extraidos),
-                    'tipo_label' => $this->storedTypeLabel($email->datos_extraidos),
-                    'valor_extraido' => $this->storedValue($email->datos_extraidos),
-                    'codigo' => $this->storedPayloadValue($email->datos_extraidos, 'code'),
-                    'action_url' => $this->storedPayloadValue($email->datos_extraidos, 'action_url'),
-                    'extraction_status' => $this->storedPayloadValue($email->datos_extraidos, 'extraction_status') ?: ($email->extraction_status ?: 'failed'),
-                    'found_links' => $this->storedLinks($email->datos_extraidos),
-                    'fecha_recibido' => optional($email->fecha_recibido)?->toDateTimeString(),
-                    'fecha_procesado_db' => optional($email->fecha_procesado_db)?->toDateTimeString(),
-                    'raw_email' => $email->raw_email,
-                    'html_body_original' => $email->html_body_original ?: $email->cuerpo_html,
-                    'text_body_original' => $email->text_body_original,
-                ])
-                ->values(),
+            'recent_items' => $recentItems,
+            'client_visible_items' => $clientVisibleItems,
+            'dashboard_only_items' => $dashboardOnlyItems,
+        ];
+    }
+
+    private function imapItem(EmailPedido $email, int $retentionMinutes): array
+    {
+        $codigo = $this->storedPayloadValue($email->datos_extraidos, 'code');
+        $actionUrl = $this->storedPayloadValue($email->datos_extraidos, 'action_url');
+        $foundLinks = $this->storedLinks($email->datos_extraidos);
+        $validityStart = $this->validityStart($email);
+        $expiresAt = $validityStart?->addMinutes($retentionMinutes);
+        $secondsRemaining = $this->secondsRemaining($expiresAt, $retentionMinutes);
+        $dashboardAgeSeconds = $this->dashboardAgeSeconds($validityStart);
+        $hasClientValue = $codigo !== null || $actionUrl !== null;
+        $extractionStatus = $this->storedPayloadValue($email->datos_extraidos, 'extraction_status') ?: ($email->extraction_status ?: 'failed');
+        $clientVisible = $hasClientValue && $extractionStatus === 'success' && $secondsRemaining > 0;
+        $dashboardState = $clientVisible
+            ? 'visible_cliente'
+            : ($hasClientValue ? 'solo_dashboard_expirado' : 'solo_dashboard_revision');
+
+        return [
+            'id' => $email->id,
+            'message_id' => $email->message_id,
+            'thread_id' => $email->thread_id,
+            'imap_uid' => $email->imap_uid,
+            'destinatario_original' => $email->destinatario_original,
+            'remitente' => $email->remitente,
+            'asunto' => $email->asunto,
+            'tipo' => $this->storedValueType($email->datos_extraidos),
+            'tipo_label' => $this->storedTypeLabel($email->datos_extraidos),
+            'valor_extraido' => $this->storedValue($email->datos_extraidos),
+            'codigo' => $codigo,
+            'action_url' => $actionUrl,
+            'has_client_value' => $hasClientValue,
+            'client_visible' => $clientVisible,
+            'dashboard_state' => $dashboardState,
+            'dashboard_state_label' => match ($dashboardState) {
+                'visible_cliente' => 'Visible para cliente',
+                'solo_dashboard_expirado' => 'Solo dashboard (expirado para cliente)',
+                default => 'Solo dashboard (revision)',
+            },
+            'dashboard_state_tone' => match ($dashboardState) {
+                'visible_cliente' => 'ok',
+                'solo_dashboard_expirado' => 'warn',
+                default => 'danger',
+            },
+            'extraction_status' => $extractionStatus,
+            'found_links' => $foundLinks,
+            'fecha_recibido' => optional($email->fecha_recibido)?->toDateTimeString(),
+            'fecha_procesado_db' => optional($email->fecha_procesado_db)?->toDateTimeString(),
+            'validity_start_at' => $validityStart?->toDateTimeString(),
+            'expires_at' => $expiresAt?->toDateTimeString(),
+            'seconds_remaining' => $secondsRemaining,
+            'dashboard_age_seconds' => $dashboardAgeSeconds,
+            'raw_email' => $email->raw_email,
+            'html_body_original' => $email->html_body_original ?: $email->cuerpo_html,
+            'text_body_original' => $email->text_body_original,
         ];
     }
 
@@ -366,7 +407,7 @@ class DashboardData
         }
 
         $decoded = json_decode((string) $raw, true);
-        $values = is_array($decoded) ? $decoded : [$raw];
+        $values = is_array($decoded) ? $this->flattenStoredValues($decoded) : [$raw];
 
         $cleanValues = array_values(array_filter(array_map(
             fn ($value) => html_entity_decode(trim((string) $value), ENT_QUOTES | ENT_HTML5, 'UTF-8'),
@@ -388,6 +429,22 @@ class DashboardData
         $decoded = json_decode((string) $raw, true);
 
         return is_array($decoded) ? $decoded : [];
+    }
+
+    private function flattenStoredValues(mixed $value): array
+    {
+        if (is_array($value)) {
+            return collect($value)
+                ->flatMap(fn ($item) => $this->flattenStoredValues($item))
+                ->values()
+                ->all();
+        }
+
+        if (is_scalar($value) || $value === null) {
+            return [(string) $value];
+        }
+
+        return [];
     }
 
     private function storedPayloadValue(?string $raw, string $key): ?string
@@ -418,5 +475,38 @@ class DashboardData
             ->filter(fn (string $value) => Str::startsWith($value, ['http://', 'https://']))
             ->values()
             ->all();
+    }
+
+    private function validityStart(EmailPedido $email): ?CarbonImmutable
+    {
+        try {
+            $value = $email->fecha_procesado_db ?: $email->fecha_recibido;
+
+            return $value
+                ? CarbonImmutable::parse($value, config('app.timezone'))->setTimezone(config('app.timezone'))
+                : null;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function secondsRemaining(?CarbonImmutable $expiresAt, int $retentionMinutes): int
+    {
+        if (! $expiresAt) {
+            return 0;
+        }
+
+        $seconds = (int) CarbonImmutable::now(config('app.timezone'))->diffInSeconds($expiresAt, false);
+
+        return max(0, min($retentionMinutes * 60, $seconds));
+    }
+
+    private function dashboardAgeSeconds(?CarbonImmutable $validityStart): int
+    {
+        if (! $validityStart) {
+            return 0;
+        }
+
+        return max(0, (int) $validityStart->diffInSeconds(CarbonImmutable::now(config('app.timezone')), false));
     }
 }

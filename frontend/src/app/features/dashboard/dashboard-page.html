@@ -177,42 +177,38 @@
           </label>
           <div class="wide">
             <span>Duraciones y precios</span>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Duracion</th>
-                    <th>Activa</th>
-                    <th>Precio</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (duration of catalogForm().duraciones; track duration.duracion_meses; let i = $index) {
-                    <tr>
-                      <td><b>{{ duration.duracion_meses }} mes{{ duration.duracion_meses === 1 ? '' : 'es' }}</b></td>
-                      <td>
-                        <input
-                          type="checkbox"
-                          [ngModel]="duration.activo"
-                          (ngModelChange)="updateCatalogDuration(i, 'activo', $event)"
-                          name="catalog_duration_active_{{ duration.duracion_meses }}"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          [ngModel]="duration.precio"
-                          (ngModelChange)="updateCatalogDuration(i, 'precio', $event)"
-                          name="catalog_duration_price_{{ duration.duracion_meses }}"
-                          required
-                        />
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
+            <div class="duration-editor-grid">
+              @for (duration of catalogForm().duraciones; track duration.duracion_meses; let i = $index) {
+                <article class="duration-editor-card" [class.inactive]="!duration.activo">
+                  <div class="duration-editor-head">
+                    <div>
+                      <b>{{ duration.duracion_meses }} mes{{ duration.duracion_meses === 1 ? '' : 'es' }}</b>
+                      <small>{{ duration.activo ? 'Visible en tienda' : 'Oculta en tienda' }}</small>
+                    </div>
+                    <label class="switch">
+                      <input
+                        type="checkbox"
+                        [ngModel]="duration.activo"
+                        (ngModelChange)="updateCatalogDuration(i, 'activo', $event)"
+                        name="catalog_duration_active_{{ duration.duracion_meses }}"
+                      />
+                      <span>{{ duration.activo ? 'Activa' : 'Inactiva' }}</span>
+                    </label>
+                  </div>
+                  <label>
+                    <span>Precio</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      [ngModel]="duration.precio"
+                      (ngModelChange)="updateCatalogDuration(i, 'precio', $event)"
+                      name="catalog_duration_price_{{ duration.duracion_meses }}"
+                      required
+                    />
+                  </label>
+                </article>
+              }
             </div>
           </div>
           <div class="catalog-form-actions">
@@ -770,19 +766,19 @@
               <small>{{ mail.mailbox || '-' }} - {{ mail.search_criteria }}</small>
             </article>
             <article class="imap-card">
-              <span>Vigencia NetCode</span>
-              <b>{{ mail.retention_minutes }} min</b>
-              <small>La API publica solo usa correos vigentes.</small>
+              <span>Visibles al cliente</span>
+              <b>{{ mail.client_visible_count }}</b>
+              <small>Solo link o codigo vigentes por {{ mail.retention_minutes }} minutos.</small>
             </article>
             <article class="imap-card">
-              <span>Historial 24h</span>
-              <b>{{ mail.stored_recent_count }}</b>
-              <small>{{ mail.stored_count }} total guardados antes del cleanup.</small>
+              <span>Solo dashboard</span>
+              <b>{{ mail.dashboard_only_count }}</b>
+              <small>Historial, expirados o fallidos dentro de 24 horas.</small>
             </article>
             <article class="imap-card">
               <span>Ultima lectura</span>
               <b class="date">{{ mail.last_processed_at ? (mail.last_processed_at | date: 'dd/MM HH:mm:ss') : 'Nunca' }}</b>
-              <small>{{ mail.mark_seen ? 'Marca vistos despues de leer' : 'No marca vistos' }}</small>
+              <small>{{ mail.stored_recent_count }} en historial / {{ mail.stored_count }} total guardados.</small>
             </article>
           </div>
 
@@ -795,6 +791,9 @@
             <div class="cron-actions">
               <button class="btn mini primary" type="button" (click)="copyCronUrl()" [disabled]="!mail.cron_url">Copiar URL real</button>
               <a class="btn mini" href="https://cron-job.org/en/" target="_blank">Abrir cron-job.org</a>
+              <button class="btn mini danger" type="button" (click)="clearDashboardOnlyEmails()" [disabled]="clearingDashboardOnlyEmails()">
+                {{ clearingDashboardOnlyEmails() ? 'Limpiando...' : 'Limpiar solo dashboard' }}
+              </button>
             </div>
           </div>
 
@@ -857,23 +856,30 @@
             <pre class="imap-output">{{ imapOutput() }}</pre>
           }
 
+          <div class="section-head subhead">
+            <div>
+              <h2>Vigentes para cliente</h2>
+              <p>Solo correos con link o codigo util y menos de {{ mail.retention_minutes }} minutos.</p>
+            </div>
+          </div>
+
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
                   <th>Mensaje</th>
                   <th>Destino</th>
-                  <th>Resultado</th>
-                  <th>Fechas</th>
+                  <th>Resultado publico</th>
+                  <th>Tiempo cliente</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                @for (item of mail.recent_items; track item.id) {
+                @for (item of imapClientVisibleItems(); track item.id) {
                   <tr>
                     <td>
                       <div class="value-cell">
-                        <span class="tag" [ngClass]="item.extraction_status === 'success' ? 'ok' : 'warn'">{{ item.tipo_label }}</span>
+                        <span class="tag ok">{{ item.tipo_label }}</span>
                         <b>{{ item.asunto }}</b>
                         <small>ID #{{ item.id }}</small>
                         @if (item.message_id) {
@@ -889,24 +895,91 @@
                     </td>
                     <td>
                       <div class="value-cell">
+                        <b>{{ imapValueLabel(item) }}</b>
+                        <small>Recibido: {{ item.fecha_recibido ? (item.fecha_recibido | date: 'dd/MM HH:mm:ss') : '-' }}</small>
+                        <small>Procesado: {{ item.fecha_procesado_db ? (item.fecha_procesado_db | date: 'dd/MM HH:mm:ss') : '-' }}</small>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="value-cell">
+                        <span class="tag ok">{{ item.dashboard_state_label }}</span>
+                        <small>Vigente por: {{ durationLabel(item.seconds_remaining) }}</small>
+                        <small>Vence: {{ item.expires_at ? (item.expires_at | date: 'dd/MM HH:mm:ss') : '-' }}</small>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="actions-cell">
                         @if (item.codigo) {
-                          <b>Codigo: {{ item.codigo }}</b>
-                        } @else if (item.action_url) {
-                          <b>Link extraido</b>
-                        } @else {
-                          <b>Sin extraccion valida</b>
+                          <button class="btn mini" type="button" (click)="copyText(item.codigo, 'Codigo')">Copiar codigo</button>
                         }
-                        @if (item.valor_extraido && !item.codigo && !item.action_url) {
-                          <small>{{ item.valor_extraido }}</small>
-                        } @else if (item.found_links.length > 0 && !item.action_url) {
-                          <small>{{ item.found_links.length }} link(s) detectado(s) para revision</small>
+                        @if (item.action_url) {
+                          <button class="btn mini primary" type="button" (click)="openImapItemLink(item)">Abrir link</button>
+                          <button class="btn mini" type="button" (click)="copyText(item.action_url, 'Link')">Copiar link</button>
+                        }
+                        <button class="btn mini" type="button" (click)="showImapBodies(item)">Ver HTML/texto</button>
+                        <button class="btn mini" type="button" (click)="showImapOriginal(item)">Ver correo original</button>
+                      </div>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr><td colspan="5" class="empty">No hay correos vigentes para el cliente en este momento.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <div class="section-head subhead">
+            <div>
+              <h2>Solo dashboard / historial</h2>
+              <p>Correos expirados para cliente o que quedaron para revision administrativa hasta el cleanup de 24 horas.</p>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Mensaje</th>
+                  <th>Destino</th>
+                  <th>Estado dashboard</th>
+                  <th>Tiempo en dashboard</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of imapDashboardOnlyItems(); track item.id) {
+                  <tr>
+                    <td>
+                      <div class="value-cell">
+                        <span class="tag" [ngClass]="item.dashboard_state_tone">{{ item.tipo_label }}</span>
+                        <b>{{ item.asunto }}</b>
+                        <small>ID #{{ item.id }}</small>
+                        @if (item.message_id) {
+                          <small>{{ item.message_id }}</small>
                         }
                       </div>
                     </td>
                     <td>
                       <div class="value-cell">
+                        <b>{{ item.destinatario_original }}</b>
+                        <small>{{ item.remitente || '-' }}</small>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="value-cell">
+                        <span class="tag" [ngClass]="item.dashboard_state_tone">{{ item.dashboard_state_label }}</span>
+                        <b>{{ imapValueLabel(item) }}</b>
                         <small>Recibido: {{ item.fecha_recibido ? (item.fecha_recibido | date: 'dd/MM HH:mm:ss') : '-' }}</small>
                         <small>Procesado: {{ item.fecha_procesado_db ? (item.fecha_procesado_db | date: 'dd/MM HH:mm:ss') : '-' }}</small>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="value-cell">
+                        <small>En dashboard: {{ durationLabel(item.dashboard_age_seconds) }}</small>
+                        <small>Expiro al cliente: {{ item.expires_at ? (item.expires_at | date: 'dd/MM HH:mm:ss') : '-' }}</small>
+                        @if (item.found_links.length > 0 && !item.action_url) {
+                          <small>{{ item.found_links.length }} link(s) disponibles para revision</small>
+                        }
                       </div>
                     </td>
                     <td>
@@ -927,7 +1000,7 @@
                     </td>
                   </tr>
                 } @empty {
-                  <tr><td colspan="5" class="empty">Aun no hay correos guardados en las ultimas 24 horas.</td></tr>
+                  <tr><td colspan="5" class="empty">No hay correos solo-dashboard dentro del historial de 24 horas.</td></tr>
                 }
               </tbody>
             </table>
