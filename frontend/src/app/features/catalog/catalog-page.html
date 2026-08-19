@@ -57,8 +57,8 @@
             </div>
 
             <div class="price">
-              S/ {{ platform.precio | number: '1.2-2' }}
-              <small>/mes</small>
+              S/ {{ (selectedDuration(platform)?.precio ?? platform.precio) | number: '1.2-2' }}
+              <small>/{{ selectedDuration(platform)?.duracion_meses ?? 1 }} mes{{ (selectedDuration(platform)?.duracion_meses ?? 1) === 1 ? '' : 'es' }}</small>
             </div>
           </div>
 
@@ -77,6 +77,21 @@
           </div>
 
           <div class="product-info">
+            <details open>
+              <summary>Duraciones disponibles</summary>
+              <div class="features">
+                @for (duration of platform.duraciones; track duration.id ?? duration.duracion_meses) {
+                  <button
+                    type="button"
+                    class="tag-select"
+                    [class.active]="selectedDuration(platform)?.duracion_meses === duration.duracion_meses"
+                    (click)="chooseDuration(platform.id, duration.duracion_meses)"
+                  >
+                    {{ duration.duracion_meses }} mes{{ duration.duracion_meses === 1 ? '' : 'es' }} - S/ {{ duration.precio | number: '1.2-2' }}
+                  </button>
+                }
+              </div>
+            </details>
             <details>
               <summary>Como se activa</summary>
               <p>{{ platform.activacion || 'Despues del pago se coordina la entrega del acceso.' }}</p>

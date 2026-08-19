@@ -13,11 +13,21 @@ export interface PlataformaCatalogItem {
   terminos: string | null;
   activo: boolean;
   orden: number | null;
+  duraciones: PlataformaCatalogDuration[];
+}
+
+export interface PlataformaCatalogDuration {
+  id: number | null;
+  duracion_meses: number;
+  precio: number;
+  activo: boolean;
 }
 
 export interface CartItem {
-  id: number;
+  id: string;
+  platform_id: number;
   name: string;
+  duration_months: number;
   price: number;
   quantity: number;
 }

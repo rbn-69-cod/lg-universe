@@ -14,7 +14,7 @@ import {
   LucideX,
 } from '@lucide/angular';
 
-import { PlataformaCatalogItem } from '../../core/api-types';
+import { PlataformaCatalogDuration, PlataformaCatalogItem } from '../../core/api-types';
 import { CatalogApi } from '../../core/catalog-api';
 import { CartStore } from './cart-store';
 
@@ -47,6 +47,7 @@ export class CatalogPage {
   readonly error = signal('');
   readonly toast = signal('');
   readonly isCartOpen = signal(false);
+  readonly selectedDurations = signal<Record<number, number>>({});
 
   readonly visiblePlatforms = computed(() => {
     const term = this.searchTerm().trim().toLowerCase();
@@ -59,6 +60,11 @@ export class CatalogPage {
     this.catalogApi.getPlataformas().subscribe({
       next: (platforms) => {
         this.platforms.set(platforms);
+        const defaults: Record<number, number> = {};
+        for (const platform of platforms) {
+          defaults[platform.id] = platform.duraciones[0]?.duracion_meses ?? 1;
+        }
+        this.selectedDurations.set(defaults);
         this.loading.set(false);
       },
       error: () => {
@@ -69,13 +75,40 @@ export class CatalogPage {
   }
 
   addToCart(platform: PlataformaCatalogItem): void {
-    this.cart.add(platform);
-    this.showToast(`${platform.nombre} agregado`);
+    const duration = this.selectedDuration(platform);
+    if (!duration) {
+      this.showToast('No hay duraciones activas para esta plataforma');
+      return;
+    }
+
+    this.cart.add(platform, duration);
+    this.showToast(`${platform.nombre} ${duration.duracion_meses} mes${duration.duracion_meses === 1 ? '' : 'es'} agregado`);
   }
 
   buyNow(platform: PlataformaCatalogItem): void {
-    this.cart.add(platform);
+    const duration = this.selectedDuration(platform);
+    if (!duration) {
+      this.showToast('No hay duraciones activas para esta plataforma');
+      return;
+    }
+
+    this.cart.add(platform, duration);
     this.cart.checkout();
+  }
+
+  chooseDuration(platformId: number, durationMonths: number): void {
+    this.selectedDurations.update((current) => ({
+      ...current,
+      [platformId]: durationMonths,
+    }));
+  }
+
+  selectedDuration(platform: PlataformaCatalogItem): PlataformaCatalogDuration | null {
+    const selectedMonths = this.selectedDurations()[platform.id];
+
+    return platform.duraciones.find((duration) => duration.duracion_meses === selectedMonths)
+      ?? platform.duraciones[0]
+      ?? null;
   }
 
   checkout(): void {

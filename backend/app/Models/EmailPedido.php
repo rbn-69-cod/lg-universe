@@ -15,12 +15,19 @@ class EmailPedido extends Model
     public $timestamps = false;
 
     protected $fillable = [
+        'message_id',
+        'thread_id',
+        'imap_uid',
         'destinatario_original',
         'asunto',
         'remitente',
         'fecha_recibido',
+        'raw_email',
+        'html_body_original',
+        'text_body_original',
         'cuerpo_html',
         'datos_extraidos',
+        'extraction_status',
         'fecha_procesado_db',
     ];
 

@@ -1,6 +1,6 @@
 import { Injectable, computed, signal } from '@angular/core';
 
-import { CartItem, CheckoutPayload, PlataformaCatalogItem } from '../../core/api-types';
+import { CartItem, CheckoutPayload, PlataformaCatalogDuration, PlataformaCatalogItem } from '../../core/api-types';
 
 const CART_KEY = 'ig_cart_pro';
 const PAYLOAD_KEY = 'checkout_payload';
@@ -15,17 +15,20 @@ export class CartStore {
     this.items().reduce((total, item) => total + item.price * item.quantity, 0),
   );
 
-  add(platform: PlataformaCatalogItem): void {
+  add(platform: PlataformaCatalogItem, duration: PlataformaCatalogDuration): void {
     const current = [...this.items()];
-    const existing = current.find((item) => item.id === platform.id);
+    const itemId = `${platform.id}:${duration.duracion_meses}`;
+    const existing = current.find((item) => item.id === itemId);
 
     if (existing) {
       existing.quantity += 1;
     } else {
       current.push({
-        id: platform.id,
-        name: platform.nombre,
-        price: Number(platform.precio),
+        id: itemId,
+        platform_id: platform.id,
+        name: `${platform.nombre} - ${duration.duracion_meses} mes${duration.duracion_meses === 1 ? '' : 'es'}`,
+        duration_months: duration.duracion_meses,
+        price: Number(duration.precio),
         quantity: 1,
       });
     }

@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Support\PaymentSettings;
 use App\Support\TutorialContent;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Str;
 
 class DashboardData
 {
@@ -81,6 +82,7 @@ class DashboardData
                 'ultimo_error' => $range->ultimo_error,
             ])->values(),
             'catalog' => Plataforma::query()
+                ->with(['duraciones' => fn ($query) => $query->orderBy('duracion_meses')])
                 ->orderBy('orden')
                 ->orderBy('id')
                 ->get()
@@ -95,6 +97,16 @@ class DashboardData
                     'terminos' => $platform->terminos,
                     'activo' => (bool) $platform->activo,
                     'orden' => $platform->orden,
+                    'duraciones' => $platform->duraciones
+                        ->sortBy('duracion_meses')
+                        ->values()
+                        ->map(fn ($duration) => [
+                            'id' => $duration->id,
+                            'duracion_meses' => (int) $duration->duracion_meses,
+                            'precio' => (float) $duration->precio,
+                            'activo' => (bool) $duration->activo,
+                        ])
+                        ->all(),
                 ])
                 ->values(),
             'admins' => User::query()
@@ -237,6 +249,7 @@ class DashboardData
         $retention = min(7, max(1, (int) config('imap.retention_minutes', 7)));
         $token = (string) config('services.cron.token', '');
         $cronUrl = route('cron.procesar-emails', ['token' => $token]);
+        $historyFrom = now()->subDay();
 
         return [
             'configured' => (string) config('imap.username', '') !== '' && (string) config('imap.password', '') !== '',
@@ -246,26 +259,55 @@ class DashboardData
             'search_criteria' => (string) config('imap.search_criteria', 'UNSEEN'),
             'mark_seen' => filter_var(config('imap.mark_seen', true), FILTER_VALIDATE_BOOLEAN),
             'retention_minutes' => $retention,
+            'history_window_hours' => 24,
             'cron_url' => $token === '' ? null : $cronUrl,
             'cron_url_masked' => $token === '' ? null : str_replace($token, '***', $cronUrl),
             'cron_token_masked' => $token === '' ? null : substr($token, 0, 3).'***',
             'stored_count' => EmailPedido::query()->count(),
             'stored_recent_count' => EmailPedido::query()
-                ->where('fecha_recibido', '>=', now()->subMinutes($retention))
+                ->where(function ($query) use ($historyFrom) {
+                    $query->whereNotNull('fecha_procesado_db')
+                        ->where('fecha_procesado_db', '>=', $historyFrom);
+                })
+                ->orWhere(function ($query) use ($historyFrom) {
+                    $query->whereNull('fecha_procesado_db')
+                        ->where('fecha_recibido', '>=', $historyFrom);
+                })
                 ->count(),
             'last_processed_at' => $this->dateTimeString(EmailPedido::query()->max('fecha_procesado_db')),
             'recent_items' => EmailPedido::query()
+                ->where(function ($query) use ($historyFrom) {
+                    $query->whereNotNull('fecha_procesado_db')
+                        ->where('fecha_procesado_db', '>=', $historyFrom);
+                })
+                ->orWhere(function ($query) use ($historyFrom) {
+                    $query->whereNull('fecha_procesado_db')
+                        ->where('fecha_recibido', '>=', $historyFrom);
+                })
                 ->orderByDesc('fecha_procesado_db')
-                ->limit(8)
+                ->orderByDesc('fecha_recibido')
+                ->orderByDesc('id')
                 ->get()
                 ->map(fn (EmailPedido $email) => [
                     'id' => $email->id,
+                    'message_id' => $email->message_id,
+                    'thread_id' => $email->thread_id,
+                    'imap_uid' => $email->imap_uid,
                     'destinatario_original' => $email->destinatario_original,
+                    'remitente' => $email->remitente,
                     'asunto' => $email->asunto,
                     'tipo' => $this->storedValueType($email->datos_extraidos),
+                    'tipo_label' => $this->storedTypeLabel($email->datos_extraidos),
                     'valor_extraido' => $this->storedValue($email->datos_extraidos),
+                    'codigo' => $this->storedPayloadValue($email->datos_extraidos, 'code'),
+                    'action_url' => $this->storedPayloadValue($email->datos_extraidos, 'action_url'),
+                    'extraction_status' => $this->storedPayloadValue($email->datos_extraidos, 'extraction_status') ?: ($email->extraction_status ?: 'failed'),
+                    'found_links' => $this->storedLinks($email->datos_extraidos),
                     'fecha_recibido' => optional($email->fecha_recibido)?->toDateTimeString(),
                     'fecha_procesado_db' => optional($email->fecha_procesado_db)?->toDateTimeString(),
+                    'raw_email' => $email->raw_email,
+                    'html_body_original' => $email->html_body_original ?: $email->cuerpo_html,
+                    'text_body_original' => $email->text_body_original,
                 ])
                 ->values(),
         ];
@@ -286,6 +328,11 @@ class DashboardData
 
     private function storedValueType(?string $raw): string
     {
+        $payload = $this->storedPayload($raw);
+        if (is_string($payload['type'] ?? null) && $payload['type'] !== '') {
+            return (string) $payload['type'];
+        }
+
         $value = $this->storedValue($raw);
 
         if (preg_match('/^\d{4}$/', trim($value))) {
@@ -299,8 +346,25 @@ class DashboardData
         return trim($value) === '' ? 'sin_dato' : 'codigo';
     }
 
+    private function storedTypeLabel(?string $raw): string
+    {
+        return match ($this->storedValueType($raw)) {
+            'login_code', 'codigo_4', 'codigo' => 'Codigo de inicio de sesion',
+            'household_update' => 'Actualizar Hogar',
+            'temporary_access' => 'Acceso temporal',
+            'link' => 'Link detectado',
+            default => 'No se pudo detectar',
+        };
+    }
+
     private function storedValue(?string $raw): string
     {
+        $payload = $this->storedPayload($raw);
+        $structuredValue = trim((string) ($payload['code'] ?? $payload['action_url'] ?? $payload['value'] ?? ''));
+        if ($structuredValue !== '') {
+            return html_entity_decode($structuredValue, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+
         $decoded = json_decode((string) $raw, true);
         $values = is_array($decoded) ? $decoded : [$raw];
 
@@ -317,5 +381,42 @@ class DashboardData
         $code = collect($cleanValues)->first(fn (string $value) => preg_match('/^\d{4,8}$/', $value));
 
         return is_string($code) ? $code : (string) end($cleanValues);
+    }
+
+    private function storedPayload(?string $raw): array
+    {
+        $decoded = json_decode((string) $raw, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private function storedPayloadValue(?string $raw, string $key): ?string
+    {
+        $payload = $this->storedPayload($raw);
+        $value = $payload[$key] ?? null;
+
+        if (! is_string($value)) {
+            return null;
+        }
+
+        $clean = trim(html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+
+        return $clean !== '' ? $clean : null;
+    }
+
+    private function storedLinks(?string $raw): array
+    {
+        $payload = $this->storedPayload($raw);
+        $links = $payload['found_links'] ?? [];
+
+        if (! is_array($links)) {
+            return [];
+        }
+
+        return collect($links)
+            ->map(fn ($value) => trim(html_entity_decode((string) $value, ENT_QUOTES | ENT_HTML5, 'UTF-8')))
+            ->filter(fn (string $value) => Str::startsWith($value, ['http://', 'https://']))
+            ->values()
+            ->all();
     }
 }

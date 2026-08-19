@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\Email\NetflixEmailParser;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -12,6 +13,12 @@ class ProcesarEmailsPedidos extends Command
     protected $signature = 'emails:procesar-pedidos';
 
     protected $description = 'Importa correos IMAP configurados y extrae codigos o enlaces recientes';
+
+    public function __construct(
+        private readonly NetflixEmailParser $netflixEmailParser,
+    ) {
+        parent::__construct();
+    }
 
     public function handle()
     {
@@ -113,8 +120,7 @@ class ProcesarEmailsPedidos extends Command
     public function cleanupExpiredEmails(string $dbTabla): int
     {
         try {
-            $minutos = min(7, max(1, (int) config('imap.retention_minutes')));
-            $cutoff = now()->subMinutes($minutos);
+            $cutoff = now()->subDay();
 
             return DB::table($dbTabla)
                 ->where(function ($query) use ($cutoff) {
@@ -147,12 +153,15 @@ class ProcesarEmailsPedidos extends Command
         }
 
         $asunto = $this->decodeMime($header->subject ?? 'Sin Asunto');
-        $asuntoNorm = $this->norm($asunto);
         $remitente = $this->remitente($header);
         $fecha = date('Y-m-d H:i:s', $header->udate ?? time());
 
         $rawHeaders = @imap_fetchheader($inbox, $uid, FT_UID) ?: '';
+        $rawBody = @imap_body($inbox, $uid, FT_UID) ?: '';
         $structure = @imap_fetchstructure($inbox, $uid, FT_UID);
+        $messageId = $this->extractHeaderValue($rawHeaders, 'Message-ID');
+        $threadId = $this->extractThreadId($rawHeaders);
+        $imapUid = (string) $uid;
 
         $textoPlano = '';
         $html = '';
@@ -166,30 +175,35 @@ class ProcesarEmailsPedidos extends Command
             }
         }
 
-        $textoPlano = $this->toUtf8($textoPlano);
-        $html = $this->toUtf8($html);
-        $searchableBody = $this->bodyToText($textoPlano."\n".$html);
-        $searchableNorm = $this->norm($searchableBody);
-
-        $esTemporal = $this->esCorreoTemporal($asuntoNorm, $searchableNorm);
-        $esHogar = $this->esCorreoHogar($asuntoNorm, $searchableNorm);
-
-        if (! $esTemporal && ! $esHogar) {
-            $this->log("Asunto ignorado: {$asunto}");
-            $this->markSeen($inbox, $uid);
-
-            return;
-        }
+        $textoPlanoOriginal = $this->toUtf8($textoPlano);
+        $htmlOriginal = $this->toUtf8($html);
+        $searchableBody = $this->bodyToText($textoPlanoOriginal."\n".$htmlOriginal);
+        $parsedData = $this->netflixEmailParser->parse($asunto, $htmlOriginal, $textoPlanoOriginal);
+        $datosExtraidos = $this->buildStoredPayload(
+            $parsedData,
+            $asunto,
+            $this->netflixEmailParser->extractLinks($htmlOriginal, $textoPlanoOriginal)
+        );
 
         $destinatarioOriginal = $this->extraerDestinatarioOriginal($searchableBody, $rawHeaders, $header, $imapUsuario);
-        $datosExtraidos = $this->extraerDatosNetflix($html, $textoPlano, $esTemporal, $esHogar);
 
         try {
-            $exists = DB::table($dbTabla)
-                ->where('destinatario_original', $destinatarioOriginal)
-                ->where('asunto', $asunto)
-                ->where('fecha_recibido', $fecha)
-                ->exists();
+            $existsQuery = DB::table($dbTabla);
+
+            if ($messageId !== null) {
+                $existsQuery->where('message_id', $messageId);
+            } else {
+                $existsQuery->where(function ($query) use ($imapUid, $destinatarioOriginal, $asunto, $fecha) {
+                    $query->where('imap_uid', $imapUid)
+                        ->orWhere(function ($fallback) use ($destinatarioOriginal, $asunto, $fecha) {
+                            $fallback->where('destinatario_original', $destinatarioOriginal)
+                                ->where('asunto', $asunto)
+                                ->where('fecha_recibido', $fecha);
+                        });
+                });
+            }
+
+            $exists = $existsQuery->exists();
 
             if ($exists) {
                 $this->log('Correo ya procesado anteriormente, se omite duplicado.');
@@ -199,145 +213,59 @@ class ProcesarEmailsPedidos extends Command
             }
 
             DB::table($dbTabla)->insert([
+                'message_id' => $messageId,
+                'thread_id' => $threadId,
+                'imap_uid' => $imapUid,
                 'destinatario_original' => $destinatarioOriginal,
                 'asunto' => $asunto,
                 'remitente' => $remitente,
                 'fecha_recibido' => $fecha,
-                'cuerpo_html' => $html,
+                'raw_email' => trim($rawHeaders."\r\n".$rawBody),
+                'html_body_original' => $htmlOriginal,
+                'text_body_original' => $textoPlanoOriginal,
+                'cuerpo_html' => $htmlOriginal,
                 'datos_extraidos' => json_encode($datosExtraidos, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                'extraction_status' => $datosExtraidos['extraction_status'] ?? 'failed',
             ]);
 
-            if ($datosExtraidos === []) {
-                $this->log('Correo guardado, pero no se encontraron codigos ni enlaces.');
-            } else {
-                $this->log('Correo guardado con '.$this->summary($datosExtraidos).'.');
-            }
-
+            $this->log('Correo guardado con '.$this->summary($datosExtraidos).'.');
             $this->markSeen($inbox, $uid);
         } catch (\Throwable $e) {
             $this->log('ERROR DB: '.$e->getMessage());
         }
     }
 
-    private function esCorreoTemporal(string $asuntoNorm, string $bodyNorm): bool
+    private function buildStoredPayload(array $parsedData, string $subject, array $foundLinks): array
     {
-        $haystack = $asuntoNorm.' '.$bodyNorm;
-        $keywords = $this->configuredKeywords('temporal');
+        $type = $parsedData['type'] ?? 'unknown';
+        $code = $parsedData['code'] ?? null;
+        $actionUrl = $parsedData['action_url'] ?? null;
 
-        foreach ($keywords as $keyword) {
-            if (str_contains($haystack, $this->norm($keyword))) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function esCorreoHogar(string $asuntoNorm, string $bodyNorm): bool
-    {
-        $haystack = $asuntoNorm.' '.$bodyNorm;
-        $keywords = $this->configuredKeywords('hogar');
-
-        foreach ($keywords as $keyword) {
-            if (str_contains($haystack, $this->norm($keyword))) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function configuredKeywords(string $type): array
-    {
-        $raw = (string) config("imap.keywords.{$type}", '');
-
-        return array_values(array_filter(array_map(
-            fn (string $keyword) => trim($keyword),
-            explode(',', $raw)
-        )));
-    }
-
-    private function extraerDatosNetflix(string $html, string $textoPlano, bool $esTemporal, bool $esHogar): array
-    {
-        $body = $this->cleanEmailBody($html."\n".$textoPlano);
-        $resultados = [];
-
-        if ($esTemporal) {
-            $codigo = $this->extraerCodigoNetflix($body);
-            if ($codigo !== null) {
-                $resultados[] = $codigo;
-            }
-        }
-
-        if ($esHogar || $resultados === []) {
-            $resultados = array_merge($resultados, $this->extraerLinksNetflix($body));
-        }
-
-        return array_values(array_unique(array_filter($resultados)));
-    }
-
-    private function summary(array $values): string
-    {
-        $links = 0;
-        $codes = 0;
-
-        foreach ($values as $value) {
-            $value = trim((string) $value);
-
-            if (str_starts_with($value, 'http')) {
-                $links++;
-            } elseif (preg_match('/^\d{4,8}$/', $value)) {
-                $codes++;
-            }
-        }
-
-        return "{$links} link(s), {$codes} codigo(s)";
-    }
-
-    private function extraerCodigoNetflix(string $body): ?string
-    {
-        $text = $this->bodyToText($body);
-
-        $patterns = [
-            '/Ingresa\s+este\s+c[oó]digo\s+para\s+iniciar\s+sesi[oó]n\s*[:\-]?\s*(\d{4,8})/iu',
-            '/c[oó]digo\s+para\s+iniciar\s+sesi[oó]n\s*[:\-]?\s*(\d{4,8})/iu',
-            '/c[oó]digo\s+de\s+inicio\s+de\s+sesi[oó]n\s*[:\-]?\s*(\d{4,8})/iu',
-            '/\b(\d{4,8})\b\s+Ingresa\s+este\s+c[oó]digo/iu',
-            '/\b(\d{4,8})\b/',
+        return [
+            'platform' => $parsedData['platform'] ?? 'Netflix',
+            'type' => $type,
+            'code' => $code,
+            'action_url' => $actionUrl,
+            'duration_minutes' => $parsedData['duration_minutes'] ?? null,
+            'subject' => $subject,
+            'value' => $code ?? $actionUrl ?? null,
+            'extraction_status' => match (true) {
+                $type === 'login_code' && $code !== null => 'success',
+                in_array($type, ['household_update', 'temporary_access'], true) && $actionUrl !== null => 'success',
+                default => 'failed',
+            },
+            'found_links' => array_values(array_unique(array_filter($foundLinks, fn ($value) => trim((string) $value) !== ''))),
         ];
-
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $text, $matches)) {
-                return $matches[1];
-            }
-        }
-
-        return null;
     }
 
-    private function extraerLinksNetflix(string $body): array
+    private function summary(array $payload): string
     {
-        $links = [];
-        $patterns = [
-            '/(https?:\/\/www\.netflix\.com\/[^\s"\'<>]*?(?:update-primary-location|travel\/verify)[^\s"\'<>]*)/i',
-            '/(https?:\/\/www\.netflix\.com\/[^\s"\'<>]*?nftoken=[^\s"\'<>]*)/i',
-            '/(https?:\/\/www\.netflix\.com\/[^\s"\'<>]{50,})/i',
-        ];
-
-        foreach ($patterns as $pattern) {
-            if (preg_match_all($pattern, $body, $matches)) {
-                $links = array_merge($links, $matches[0]);
-            }
-
-            if ($links !== []) {
-                break;
-            }
-        }
-
-        return array_values(array_unique(array_map(
-            fn ($link) => html_entity_decode($link, ENT_QUOTES | ENT_HTML5, 'UTF-8'),
-            $links
-        )));
+        return match ($payload['type'] ?? 'unknown') {
+            'login_code' => 'login_code: '.($payload['code'] ?? 'sin_codigo'),
+            'household_update' => 'household_update: '.($payload['action_url'] ?? 'sin_link'),
+            'temporary_access' => 'temporary_access: '.($payload['action_url'] ?? 'sin_link'),
+            default => 'unknown / revisable',
+        };
     }
 
     private function extraerDestinatarioOriginal(string $textoPlano, string $rawHeaders, object $header, string $imapUsuario): string
@@ -350,7 +278,7 @@ class ProcesarEmailsPedidos extends Command
         }
 
         $patterns = [
-            '/Netflix te envi[oó] este mensaje a\s+\[([^\]]+)\]/iu',
+            '/Netflix te envi[oÃ³] este mensaje a\s+\[([^\]]+)\]/iu',
             '/sent this message to\s+\[([^\]]+)\]/iu',
         ];
 
@@ -402,16 +330,6 @@ class ProcesarEmailsPedidos extends Command
         $body = preg_replace('/\s+/', ' ', $body) ?? $body;
 
         return trim($body);
-    }
-
-    private function norm(string $txt): string
-    {
-        $txt = mb_strtolower($txt, 'UTF-8');
-        $txt = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $txt) ?: $txt;
-        $txt = preg_replace('/[^a-z0-9\s\?\!]/', ' ', $txt) ?? $txt;
-        $txt = preg_replace('/\s+/', ' ', $txt) ?? $txt;
-
-        return trim($txt);
     }
 
     private function toUtf8(string $value): string
@@ -512,6 +430,29 @@ class ProcesarEmailsPedidos extends Command
         }
 
         return $error !== '' ? $error : 'Sin detalle del servidor IMAP.';
+    }
+
+    private function extractHeaderValue(string $headers, string $name): ?string
+    {
+        if (! preg_match('/^'.preg_quote($name, '/').':\s*(.+)$/im', $headers, $matches)) {
+            return null;
+        }
+
+        $value = trim((string) ($matches[1] ?? ''));
+
+        return $value !== '' ? $value : null;
+    }
+
+    private function extractThreadId(string $headers): ?string
+    {
+        foreach (['X-GM-THRID', 'Thread-Index', 'References', 'In-Reply-To'] as $headerName) {
+            $value = $this->extractHeaderValue($headers, $headerName);
+            if ($value !== null) {
+                return $value;
+            }
+        }
+
+        return null;
     }
 
     protected function findBodyPart($structure, string $mime, string $sec = '', $inbox = null, int $uid = 0): array

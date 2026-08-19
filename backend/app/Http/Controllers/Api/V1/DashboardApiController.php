@@ -368,7 +368,11 @@ class DashboardApiController extends Controller
         $data = $this->catalogData($request);
         $data['orden'] = ((int) Plataforma::query()->max('orden')) + 1;
 
-        Plataforma::query()->create($data);
+        $duraciones = $data['duraciones'];
+        unset($data['duraciones']);
+
+        $plataforma = Plataforma::query()->create($data);
+        $this->syncPlatformDurations($plataforma, $duraciones);
 
         return response()->json([
             'message' => 'Plataforma creada.',
@@ -378,7 +382,12 @@ class DashboardApiController extends Controller
 
     public function updateCatalogPlatform(Request $request, Plataforma $plataforma): JsonResponse
     {
-        $plataforma->update($this->catalogData($request));
+        $data = $this->catalogData($request);
+        $duraciones = $data['duraciones'];
+        unset($data['duraciones']);
+
+        $plataforma->update($data);
+        $this->syncPlatformDurations($plataforma, $duraciones);
 
         return response()->json([
             'message' => 'Plataforma actualizada.',
@@ -603,6 +612,10 @@ class DashboardApiController extends Controller
             'activacion' => ['nullable', 'string', 'max:2000'],
             'terminos' => ['nullable', 'string', 'max:2000'],
             'activo' => ['boolean'],
+            'duraciones' => ['required', 'array', 'size:4'],
+            'duraciones.*.duracion_meses' => ['required', 'integer', 'in:1,2,3,6'],
+            'duraciones.*.precio' => ['required', 'numeric', 'min:0'],
+            'duraciones.*.activo' => ['boolean'],
         ]);
 
         $data['features'] = array_values(array_filter(array_map(
@@ -610,8 +623,33 @@ class DashboardApiController extends Controller
             preg_split('/\r\n|\r|\n/', (string) ($data['features'] ?? '')) ?: []
         )));
         $data['activo'] = $request->boolean('activo', true);
+        $data['duraciones'] = collect($data['duraciones'])
+            ->map(fn (array $duration) => [
+                'duracion_meses' => (int) $duration['duracion_meses'],
+                'precio' => (float) $duration['precio'],
+                'activo' => filter_var($duration['activo'] ?? false, FILTER_VALIDATE_BOOLEAN),
+            ])
+            ->sortBy('duracion_meses')
+            ->values()
+            ->all();
+
+        $primaryDuration = collect($data['duraciones'])->firstWhere('duracion_meses', 1);
+        $data['precio'] = (float) ($primaryDuration['precio'] ?? $data['precio']);
 
         return $data;
+    }
+
+    private function syncPlatformDurations(Plataforma $plataforma, array $duraciones): void
+    {
+        foreach ($duraciones as $duration) {
+            $plataforma->duraciones()->updateOrCreate(
+                ['duracion_meses' => (int) $duration['duracion_meses']],
+                [
+                    'precio' => (float) $duration['precio'],
+                    'activo' => (bool) $duration['activo'],
+                ]
+            );
+        }
     }
 
     private function columnFields(): array

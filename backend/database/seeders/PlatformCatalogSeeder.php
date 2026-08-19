@@ -29,7 +29,7 @@ class PlatformCatalogSeeder extends Seeder
         ];
 
         foreach ($items as $index => [$name, $price, $description, $features, $activation, $terms]) {
-            Plataforma::query()->updateOrCreate(
+            $platform = Plataforma::query()->updateOrCreate(
                 ['nombre' => $name],
                 [
                     'imagen' => null,
@@ -40,6 +40,14 @@ class PlatformCatalogSeeder extends Seeder
                     'terminos' => $terms,
                     'activo' => true,
                     'orden' => $index + 1,
+                ]
+            );
+
+            $platform->duraciones()->updateOrCreate(
+                ['duracion_meses' => 1],
+                [
+                    'precio' => $price,
+                    'activo' => true,
                 ]
             );
         }

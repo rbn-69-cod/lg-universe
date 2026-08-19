@@ -19,9 +19,11 @@ import {
   DashboardAdmin,
   DashboardAdminPayload,
   DashboardApi,
+  DashboardCatalogDuration,
   DashboardCatalogPayload,
   DashboardCatalogPlatform,
   DashboardData,
+  DashboardImapItem,
   DashboardImapSettingsPayload,
   DashboardPaymentMethod,
   DashboardPaymentSettings,
@@ -291,6 +293,7 @@ export class DashboardPage {
       activacion: platform.activacion || '',
       terminos: platform.terminos || '',
       activo: platform.activo,
+      duraciones: this.normalizeCatalogDurations(platform.duraciones, Number(platform.precio || 0)),
     });
   }
 
@@ -351,6 +354,23 @@ export class DashboardPage {
 
   updateCatalogField<K extends keyof DashboardCatalogPayload>(field: K, value: DashboardCatalogPayload[K]): void {
     this.catalogForm.update((current) => ({ ...current, [field]: value }));
+  }
+
+  updateCatalogDuration(index: number, field: keyof DashboardCatalogDuration, value: string | number | boolean): void {
+    this.catalogForm.update((current) => ({
+      ...current,
+      duraciones: current.duraciones.map((duration, currentIndex) => currentIndex === index
+        ? {
+            ...duration,
+            [field]: field === 'precio'
+              ? Number(value)
+              : field === 'activo'
+                ? Boolean(value)
+                : value,
+          } as DashboardCatalogDuration
+        : duration),
+      precio: field === 'precio' && current.duraciones[index]?.duracion_meses === 1 ? Number(value) : current.precio,
+    }));
   }
 
   editAdmin(admin: DashboardAdmin): void {
@@ -843,6 +863,70 @@ export class DashboardPage {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
+  openImapItemLink(item: DashboardImapItem): void {
+    const url = item.action_url || item.found_links[0] || null;
+    if (!url) return;
+
+    this.openUrl(url);
+  }
+
+  showImapOriginal(item: DashboardImapItem): void {
+    void Swal.fire({
+      title: item.asunto || 'Correo original',
+      html: `
+        <div style="text-align:left;display:grid;gap:12px">
+          <div><b>Destino:</b> ${this.escapeHtml(item.destinatario_original || '-')}</div>
+          <div><b>Remitente:</b> ${this.escapeHtml(item.remitente || '-')}</div>
+          <div><b>Message-ID:</b> ${this.escapeHtml(item.message_id || '-')}</div>
+          <pre style="white-space:pre-wrap;max-height:50vh;overflow:auto;background:#020617;padding:12px;border-radius:12px;">${this.escapeHtml(item.raw_email || 'Sin raw_email guardado.')}</pre>
+        </div>
+      `,
+      width: 900,
+      confirmButtonColor: '#27e0ff',
+      background: '#0b1020',
+      color: '#f8fbff',
+    });
+  }
+
+  showImapBodies(item: DashboardImapItem): void {
+    void Swal.fire({
+      title: 'HTML / texto original',
+      html: `
+        <div style="text-align:left;display:grid;gap:16px">
+          <div>
+            <b>Texto original</b>
+            <pre style="white-space:pre-wrap;max-height:26vh;overflow:auto;background:#020617;padding:12px;border-radius:12px;">${this.escapeHtml(item.text_body_original || 'Sin texto plano guardado.')}</pre>
+          </div>
+          <div>
+            <b>HTML original</b>
+            <pre style="white-space:pre-wrap;max-height:26vh;overflow:auto;background:#020617;padding:12px;border-radius:12px;">${this.escapeHtml(item.html_body_original || 'Sin HTML guardado.')}</pre>
+          </div>
+        </div>
+      `,
+      width: 980,
+      confirmButtonColor: '#27e0ff',
+      background: '#0b1020',
+      color: '#f8fbff',
+    });
+  }
+
+  showImapLinks(item: DashboardImapItem): void {
+    const links = item.found_links || [];
+
+    void Swal.fire({
+      title: 'Links encontrados',
+      html: links.length > 0
+        ? `<div style="text-align:left;display:grid;gap:10px">${links
+            .map((link, index) => `<div><b>${index + 1}.</b> <a href="${this.escapeHtml(link)}" target="_blank" rel="noopener noreferrer">${this.escapeHtml(link)}</a></div>`)
+            .join('')}</div>`
+        : '<p>No se detectaron links en este correo.</p>',
+      width: 980,
+      confirmButtonColor: '#27e0ff',
+      background: '#0b1020',
+      color: '#f8fbff',
+    });
+  }
+
   private slug(value: string): string {
     return value
       .normalize('NFD')
@@ -898,6 +982,15 @@ export class DashboardPage {
     });
   }
 
+  private escapeHtml(value: string): string {
+    return value
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
   private emptyRange(): DashboardRangePayload {
     return {
       plataforma: 'Netflix Premium',
@@ -935,7 +1028,23 @@ export class DashboardPage {
       activacion: '',
       terminos: '',
       activo: true,
+      duraciones: this.normalizeCatalogDurations([], 0),
     };
+  }
+
+  private normalizeCatalogDurations(durations: DashboardCatalogDuration[], fallbackPrice: number): DashboardCatalogDuration[] {
+    const map = new Map((durations || []).map((duration) => [duration.duracion_meses, duration]));
+
+    return [1, 2, 3, 6].map((months) => {
+      const existing = map.get(months as 1 | 2 | 3 | 6);
+
+      return {
+        id: existing?.id ?? null,
+        duracion_meses: months as 1 | 2 | 3 | 6,
+        precio: Number(existing?.precio ?? (months === 1 ? fallbackPrice : 0)),
+        activo: existing?.activo ?? (months === 1),
+      };
+    });
   }
 
   private emptyAdmin(): DashboardAdminPayload {

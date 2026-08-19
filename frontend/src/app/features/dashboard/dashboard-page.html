@@ -175,6 +175,46 @@
             <input type="checkbox" [ngModel]="catalogForm().activo" (ngModelChange)="updateCatalogField('activo', $event)" name="catalog_activo" />
             <span>Activo en catalogo</span>
           </label>
+          <div class="wide">
+            <span>Duraciones y precios</span>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Duracion</th>
+                    <th>Activa</th>
+                    <th>Precio</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (duration of catalogForm().duraciones; track duration.duracion_meses; let i = $index) {
+                    <tr>
+                      <td><b>{{ duration.duracion_meses }} mes{{ duration.duracion_meses === 1 ? '' : 'es' }}</b></td>
+                      <td>
+                        <input
+                          type="checkbox"
+                          [ngModel]="duration.activo"
+                          (ngModelChange)="updateCatalogDuration(i, 'activo', $event)"
+                          name="catalog_duration_active_{{ duration.duracion_meses }}"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          [ngModel]="duration.precio"
+                          (ngModelChange)="updateCatalogDuration(i, 'precio', $event)"
+                          name="catalog_duration_price_{{ duration.duracion_meses }}"
+                          required
+                        />
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
           <div class="catalog-form-actions">
             <button class="btn primary" type="submit" [disabled]="savingCatalog()">
               {{ savingCatalog() ? 'Guardando...' : (editingCatalogId() ? 'Guardar cambios' : 'Crear plataforma') }}
@@ -202,6 +242,15 @@
                     <small>Orden {{ platform.orden || '-' }} - {{ platform.activo ? 'Activo' : 'Oculto' }}</small>
                   </div>
                   <b>S/ {{ platform.precio | number: '1.2-2' }}</b>
+                </div>
+                <div class="catalog-durations">
+                  @for (duration of platform.duraciones; track duration.id ?? duration.duracion_meses) {
+                    <span class="tag" [ngClass]="duration.activo ? 'ok' : 'warn'">
+                      {{ duration.duracion_meses }} mes{{ duration.duracion_meses === 1 ? '' : 'es' }} - S/ {{ duration.precio | number: '1.2-2' }}
+                    </span>
+                  } @empty {
+                    <span class="tag warn">Sin duraciones configuradas</span>
+                  }
                 </div>
                 @if (platform.descripcion) {
                   <p class="catalog-description">{{ platform.descripcion }}</p>
@@ -721,14 +770,14 @@
               <small>{{ mail.mailbox || '-' }} - {{ mail.search_criteria }}</small>
             </article>
             <article class="imap-card">
-              <span>Retencion MySQL</span>
+              <span>Vigencia NetCode</span>
               <b>{{ mail.retention_minutes }} min</b>
-              <small>La busqueda publica solo usa correos recientes.</small>
+              <small>La API publica solo usa correos vigentes.</small>
             </article>
             <article class="imap-card">
-              <span>Guardados ahora</span>
+              <span>Historial 24h</span>
               <b>{{ mail.stored_recent_count }}</b>
-              <small>{{ mail.stored_count }} total antes de limpieza.</small>
+              <small>{{ mail.stored_count }} total guardados antes del cleanup.</small>
             </article>
             <article class="imap-card">
               <span>Ultima lectura</span>
@@ -812,37 +861,73 @@
             <table>
               <thead>
                 <tr>
-                  <th>Tipo</th>
+                  <th>Mensaje</th>
                   <th>Destino</th>
-                  <th>Codigo / link</th>
-                  <th>Asunto</th>
-                  <th>Recibido</th>
-                  <th>Procesado</th>
+                  <th>Resultado</th>
+                  <th>Fechas</th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 @for (item of mail.recent_items; track item.id) {
                   <tr>
-                    <td><span class="tag" [ngClass]="item.tipo === 'link' ? 'ok' : 'warn'">{{ item.tipo }}</span></td>
-                    <td>{{ item.destinatario_original }}</td>
-                    <td class="value-cell">
-                      @if (item.valor_extraido) {
-                        @if (item.tipo === 'link') {
-                          <a [href]="item.valor_extraido" target="_blank" rel="noopener noreferrer">{{ item.valor_extraido }}</a>
-                        } @else {
-                          <b>{{ item.valor_extraido }}</b>
+                    <td>
+                      <div class="value-cell">
+                        <span class="tag" [ngClass]="item.extraction_status === 'success' ? 'ok' : 'warn'">{{ item.tipo_label }}</span>
+                        <b>{{ item.asunto }}</b>
+                        <small>ID #{{ item.id }}</small>
+                        @if (item.message_id) {
+                          <small>{{ item.message_id }}</small>
                         }
-                        <button class="btn mini" type="button" (click)="copyText(item.valor_extraido, 'Codigo o link')">Copiar</button>
-                      } @else {
-                        -
-                      }
+                      </div>
                     </td>
-                    <td>{{ item.asunto }}</td>
-                    <td>{{ item.fecha_recibido ? (item.fecha_recibido | date: 'dd/MM HH:mm:ss') : '-' }}</td>
-                    <td>{{ item.fecha_procesado_db ? (item.fecha_procesado_db | date: 'dd/MM HH:mm:ss') : '-' }}</td>
+                    <td>
+                      <div class="value-cell">
+                        <b>{{ item.destinatario_original }}</b>
+                        <small>{{ item.remitente || '-' }}</small>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="value-cell">
+                        @if (item.codigo) {
+                          <b>Codigo: {{ item.codigo }}</b>
+                        } @else if (item.action_url) {
+                          <b>Link extraido</b>
+                        } @else {
+                          <b>Sin extraccion valida</b>
+                        }
+                        @if (item.valor_extraido && !item.codigo && !item.action_url) {
+                          <small>{{ item.valor_extraido }}</small>
+                        } @else if (item.found_links.length > 0 && !item.action_url) {
+                          <small>{{ item.found_links.length }} link(s) detectado(s) para revision</small>
+                        }
+                      </div>
+                    </td>
+                    <td>
+                      <div class="value-cell">
+                        <small>Recibido: {{ item.fecha_recibido ? (item.fecha_recibido | date: 'dd/MM HH:mm:ss') : '-' }}</small>
+                        <small>Procesado: {{ item.fecha_procesado_db ? (item.fecha_procesado_db | date: 'dd/MM HH:mm:ss') : '-' }}</small>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="actions-cell">
+                        @if (item.codigo) {
+                          <button class="btn mini" type="button" (click)="copyText(item.codigo, 'Codigo')">Copiar codigo</button>
+                        }
+                        @if (item.action_url) {
+                          <button class="btn mini primary" type="button" (click)="openImapItemLink(item)">Abrir link</button>
+                          <button class="btn mini" type="button" (click)="copyText(item.action_url, 'Link')">Copiar link</button>
+                        }
+                        @if (!item.action_url && item.found_links.length > 0) {
+                          <button class="btn mini" type="button" (click)="showImapLinks(item)">Ver links</button>
+                        }
+                        <button class="btn mini" type="button" (click)="showImapBodies(item)">Ver HTML/texto</button>
+                        <button class="btn mini" type="button" (click)="showImapOriginal(item)">Ver correo original</button>
+                      </div>
+                    </td>
                   </tr>
                 } @empty {
-                  <tr><td colspan="6" class="empty">Aun no hay correos recientes guardados.</td></tr>
+                  <tr><td colspan="5" class="empty">Aun no hay correos guardados en las ultimas 24 horas.</td></tr>
                 }
               </tbody>
             </table>

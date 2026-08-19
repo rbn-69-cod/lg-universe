@@ -114,12 +114,24 @@ export interface DashboardRangePayload {
 
 export interface DashboardImapItem {
   id: number;
+  message_id: string | null;
+  thread_id: string | null;
+  imap_uid: string | null;
   destinatario_original: string;
+  remitente: string | null;
   asunto: string;
-  tipo: 'codigo_4' | 'link' | 'codigo' | 'sin_dato';
+  tipo: 'login_code' | 'household_update' | 'temporary_access' | 'codigo_4' | 'link' | 'codigo' | 'sin_dato' | 'unknown';
+  tipo_label: string;
   valor_extraido: string;
+  codigo: string | null;
+  action_url: string | null;
+  extraction_status: string;
+  found_links: string[];
   fecha_recibido: string | null;
   fecha_procesado_db: string | null;
+  raw_email: string | null;
+  html_body_original: string | null;
+  text_body_original: string | null;
 }
 
 export interface DashboardImapStatus {
@@ -130,6 +142,7 @@ export interface DashboardImapStatus {
   search_criteria: string;
   mark_seen: boolean;
   retention_minutes: number;
+  history_window_hours: number;
   cron_url: string | null;
   cron_url_masked: string | null;
   cron_token_masked: string | null;
@@ -160,6 +173,14 @@ export interface DashboardCatalogPlatform {
   terminos: string | null;
   activo: boolean;
   orden: number | null;
+  duraciones: DashboardCatalogDuration[];
+}
+
+export interface DashboardCatalogDuration {
+  id: number | null;
+  duracion_meses: 1 | 2 | 3 | 6;
+  precio: number;
+  activo: boolean;
 }
 
 export interface DashboardCatalogPayload {
@@ -171,6 +192,7 @@ export interface DashboardCatalogPayload {
   activacion: string;
   terminos: string;
   activo: boolean;
+  duraciones: DashboardCatalogDuration[];
 }
 
 export interface DashboardAdmin {

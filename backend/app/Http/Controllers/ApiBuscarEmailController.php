@@ -54,14 +54,8 @@ class ApiBuscarEmailController extends Controller
                         $query->{$method}('LOWER(destinatario_original) = ?', [$recipient]);
                     }
                 })
-                ->where(function ($query) use ($validFrom) {
-                    $query->where('fecha_procesado_db', '>=', $validFrom)
-                        ->orWhere(function ($fallback) use ($validFrom) {
-                            $fallback->whereNull('fecha_procesado_db')
-                                ->where('fecha_recibido', '>=', $validFrom);
-                        });
-                })
-                ->orderBy('fecha_procesado_db', 'desc')
+                ->whereNotNull('fecha_recibido')
+                ->where('fecha_recibido', '>=', $validFrom)
                 ->orderBy('fecha_recibido', 'desc')
                 ->orderBy('id', 'desc')
                 ->get()
@@ -92,7 +86,7 @@ class ApiBuscarEmailController extends Controller
                 ]);
             }
 
-            $validityStart = $this->validityStart($emailDataModel);
+            $validityStart = $this->publicVisibilityStart($emailDataModel);
             $expiresAt = $this->expiresAt($emailDataModel);
             $secondsRemaining = $this->secondsRemaining($emailDataModel);
 
@@ -118,7 +112,7 @@ class ApiBuscarEmailController extends Controller
                 'value' => $candidate['value'],
                 'email' => $emailDataModel->destinatario_original,
                 'received_at' => $receivedAt,
-                'validity_source' => $emailDataModel->fecha_procesado_db ? 'processed_at' : 'received_at',
+                'validity_source' => 'received_at',
                 'valor_extraido' => $candidate['value'],
                 'tipo' => $candidate['type'],
                 'fecha' => $receivedAt,
@@ -159,6 +153,11 @@ class ApiBuscarEmailController extends Controller
 
     private function extractCandidate(EmailPedido $email, string $tipoSolicitud): ?array
     {
+        $structured = $this->structuredCandidate($email, $tipoSolicitud);
+        if ($structured !== null) {
+            return $structured;
+        }
+
         foreach ($this->candidateValues($email) as $value) {
             $candidate = $this->classifyCandidate($value, $tipoSolicitud);
             if ($candidate !== null) {
@@ -176,6 +175,31 @@ class ApiBuscarEmailController extends Controller
         return null;
     }
 
+    private function structuredCandidate(EmailPedido $email, string $tipoSolicitud): ?array
+    {
+        $payload = json_decode(trim((string) $email->datos_extraidos), true);
+        if (! is_array($payload)) {
+            return null;
+        }
+
+        $type = trim((string) ($payload['type'] ?? ''));
+        $code = $this->cleanCandidateValue((string) ($payload['code'] ?? ''));
+        $actionUrl = $this->cleanCandidateValue((string) ($payload['action_url'] ?? ''));
+
+        return match ($tipoSolicitud) {
+            'acceso4' => $type === 'login_code' && preg_match('/^\d{4}$/', $code)
+                ? ['type' => 'codigo', 'value' => $code]
+                : null,
+            'hogar' => $type === 'household_update' && preg_match('/^https?:\/\//i', $actionUrl)
+                ? ['type' => 'link', 'value' => $actionUrl]
+                : null,
+            'temporal' => $type === 'temporary_access' && preg_match('/^https?:\/\//i', $actionUrl)
+                ? ['type' => 'link', 'value' => $actionUrl]
+                : null,
+            default => null,
+        };
+    }
+
     private function candidateValues(EmailPedido $email): array
     {
         $raw = trim((string) $email->datos_extraidos);
@@ -185,6 +209,14 @@ class ApiBuscarEmailController extends Controller
 
         $decoded = json_decode($raw, true);
         if (json_last_error() === JSON_ERROR_NONE) {
+            if (is_array($decoded) && array_key_exists('type', $decoded)) {
+                return array_values(array_filter(array_unique([
+                    $this->cleanCandidateValue((string) ($decoded['code'] ?? '')),
+                    $this->cleanCandidateValue((string) ($decoded['action_url'] ?? '')),
+                    $this->cleanCandidateValue((string) ($decoded['value'] ?? '')),
+                ])));
+            }
+
             return $this->flattenDecodedValues($decoded);
         }
 
@@ -212,13 +244,9 @@ class ApiBuscarEmailController extends Controller
         return [];
     }
 
-    private function validityStart(EmailPedido $email): ?CarbonImmutable
+    private function publicVisibilityStart(EmailPedido $email): ?CarbonImmutable
     {
         try {
-            if ($email->fecha_procesado_db) {
-                return CarbonImmutable::parse($email->fecha_procesado_db, config('app.timezone'));
-            }
-
             return $email->fecha_recibido
                 ? CarbonImmutable::parse($email->fecha_recibido, config('app.timezone'))
                 : null;
@@ -229,7 +257,7 @@ class ApiBuscarEmailController extends Controller
 
     private function expiresAt(EmailPedido $email): ?CarbonImmutable
     {
-        return $this->validityStart($email)?->addMinutes(self::CODE_TTL_MINUTES);
+        return $this->publicVisibilityStart($email)?->addMinutes(self::CODE_TTL_MINUTES);
     }
 
     private function secondsRemaining(EmailPedido $email): int
@@ -264,30 +292,14 @@ class ApiBuscarEmailController extends Controller
         }
 
         if ($tipoSolicitud === 'temporal') {
-            if ($isLink) {
-                return ['type' => 'link', 'value' => $value];
-            }
-
-            if ($isNumericCode) {
-                return ['type' => 'codigo', 'value' => $value];
-            }
-
-            return ['type' => 'login', 'value' => $value];
+            return $isLink
+                ? ['type' => 'link', 'value' => $value]
+                : null;
         }
 
-        if ($isCode4) {
-            return ['type' => 'codigo', 'value' => $value];
-        }
-
-        if ($isLink) {
-            return ['type' => 'link', 'value' => $value];
-        }
-
-        if (mb_strlen($value) >= 4) {
-            return ['type' => 'login', 'value' => $value];
-        }
-
-        return null;
+        return $isCode4
+            ? ['type' => 'codigo', 'value' => $value]
+            : null;
     }
 
     private function fallbackBodyCandidates(EmailPedido $email): array
