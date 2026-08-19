@@ -17,6 +17,20 @@ it('parses a netflix login code email and preserves the 4 digit code', function 
     expect($result['duration_minutes'])->toBe(15);
 });
 
+it('parses the real login email pattern and extracts code 7377 exactly', function () {
+    $parser = new NetflixEmailParser;
+
+    $result = $parser->parse(
+        'Netflix',
+        '<html><body><p>Ingresa este código para iniciar sesión</p><p>7377</p><p>Ingresa este código en tu dispositivo para iniciar sesión en Netflix.</p></body></html>',
+        "Netflix\n\nIngresa este código para iniciar sesión\n\n7377\n\nIngresa este código en tu dispositivo para iniciar sesión en Netflix."
+    );
+
+    expect($result['type'])->toBe('login_code');
+    expect($result['code'])->toBe('7377');
+    expect($result['action_url'])->toBeNull();
+});
+
 it('parses a netflix household update email and extracts the original approval href', function () {
     $parser = new NetflixEmailParser;
     $url = 'https://www.netflix.com/account/travel/verify?token=a1b2c3&device=LG%20TV&lang=es';
