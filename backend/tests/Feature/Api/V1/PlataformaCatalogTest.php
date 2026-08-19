@@ -3,6 +3,8 @@
 use App\Models\Plataforma;
 
 it('returns platform catalog data ordered by current order', function () {
+    Plataforma::query()->delete();
+
     $spotify = Plataforma::query()->create([
         'nombre' => 'Spotify',
         'imagen' => 'https://example.com/spotify.png',
@@ -63,4 +65,23 @@ it('returns platform catalog data ordered by current order', function () {
         ->assertJsonPath('data.0.duraciones.1.duracion_meses', 3)
         ->assertJsonPath('data.1.nombre', 'Spotify')
         ->assertJsonMissing(['nombre' => 'Oculta']);
+});
+
+it('does not break catalog when an active platform has no durations configured', function () {
+    Plataforma::query()->delete();
+
+    Plataforma::query()->create([
+        'nombre' => 'Basica',
+        'imagen' => null,
+        'precio' => 8.50,
+        'features' => ['Plan base'],
+        'activo' => true,
+        'orden' => 1,
+    ]);
+
+    $this->getJson('/api/v1/plataformas')
+        ->assertOk()
+        ->assertJsonPath('data.0.nombre', 'Basica')
+        ->assertJsonPath('data.0.precio', 8.5)
+        ->assertJsonPath('data.0.duraciones', []);
 });

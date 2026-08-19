@@ -2,8 +2,11 @@
 
 use App\Models\Plataforma;
 use App\Models\User;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 
 test('dashboard can create a platform with duration prices', function () {
+    Plataforma::query()->delete();
+    $this->withoutMiddleware(ValidateCsrfToken::class);
     $this->actingAs(User::factory()->admin()->create());
 
     $this->postJson('/api/v1/dashboard/catalog', [
@@ -33,6 +36,8 @@ test('dashboard can create a platform with duration prices', function () {
 });
 
 test('dashboard can update active state and duration prices for a platform', function () {
+    Plataforma::query()->delete();
+    $this->withoutMiddleware(ValidateCsrfToken::class);
     $this->actingAs(User::factory()->admin()->create());
 
     $platform = Plataforma::query()->create([
