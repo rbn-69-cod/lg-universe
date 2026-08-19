@@ -13,22 +13,22 @@ class NetflixEmailParser
         $normalizedText = $this->normalize($searchableText);
         $durationMinutes = $this->extractDurationMinutes($searchableText);
 
-        if ($this->isHouseholdUpdate($normalizedSubject, $normalizedText)) {
-            return [
-                'platform' => 'Netflix',
-                'type' => 'household_update',
-                'code' => null,
-                'action_url' => $this->extractActionUrl($decodedHtml, $searchableText, 'si la envie yo', 'household_update'),
-                'duration_minutes' => $durationMinutes,
-            ];
-        }
-
         if ($this->isTemporaryAccess($normalizedSubject, $normalizedText)) {
             return [
                 'platform' => 'Netflix',
                 'type' => 'temporary_access',
                 'code' => null,
                 'action_url' => $this->extractActionUrl($decodedHtml, $searchableText, 'obtener codigo', 'temporary_access'),
+                'duration_minutes' => $durationMinutes,
+            ];
+        }
+
+        if ($this->isHouseholdUpdate($normalizedSubject, $normalizedText)) {
+            return [
+                'platform' => 'Netflix',
+                'type' => 'household_update',
+                'code' => null,
+                'action_url' => $this->extractActionUrl($decodedHtml, $searchableText, 'si la envie yo', 'household_update'),
                 'duration_minutes' => $durationMinutes,
             ];
         }
@@ -81,7 +81,9 @@ class NetflixEmailParser
 
         return str_contains($haystack, 'solicitaste actualizar tu hogar con netflix')
             || str_contains($haystack, 'actualizar tu hogar con netflix')
-            || str_contains($haystack, 'hogar con netflix');
+            || str_contains($haystack, 'recibimos una solicitud para actualizar el hogar con netflix')
+            || str_contains($haystack, 'apruebala a continuacion')
+            || str_contains($haystack, 'si la envie yo');
     }
 
     private function isTemporaryAccess(string $subject, string $text): bool

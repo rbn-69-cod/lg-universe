@@ -231,6 +231,83 @@ it('returns the latest valid email only for the selected account', function () {
         ->assertJsonPath('value', 'https://www.netflix.com/login/token-demo');
 });
 
+it('returns only the latest temporal email for the client view even when newer emails of another type exist', function () {
+    Carbon\Carbon::setTestNow(Carbon\Carbon::create(2026, 8, 19, 10, 0, 0, 'America/Lima'));
+
+    $product = Producto::query()->create([
+        'nombre' => 'Netflix Premium',
+        'slug' => 'netflix-premium-latest-temporal-only',
+        'precio' => 15,
+        'tipo' => 'perfil',
+        'perfiles_por_cuenta' => 5,
+        'duracion_dias' => 30,
+        'activo' => true,
+    ]);
+
+    $account = Cuenta::query()->create([
+        'producto_id' => $product->id,
+        'email' => 'cliente-temporal@example.com',
+        'password' => 'secret',
+        'perfiles_total' => 5,
+        'perfiles_usados' => 1,
+        'activo' => true,
+        'source_platforma' => 'Netflix Premium',
+        'source_hoja_excel' => 'NETFLIX',
+        'source_row' => 9,
+    ]);
+
+    EmailPedido::query()->create([
+        'destinatario_original' => 'cliente-temporal@example.com',
+        'asunto' => 'Netflix temporal viejo',
+        'remitente' => 'Netflix',
+        'fecha_recibido' => now()->subMinutes(5),
+        'cuerpo_html' => 'Temporal viejo',
+        'datos_extraidos' => json_encode([
+            'type' => 'temporary_access',
+            'action_url' => 'https://www.netflix.com/account/travel/code?token=old-temporal',
+        ]),
+        'fecha_procesado_db' => now()->subMinutes(5),
+    ]);
+
+    EmailPedido::query()->create([
+        'destinatario_original' => 'cliente-temporal@example.com',
+        'asunto' => 'Netflix temporal nuevo',
+        'remitente' => 'Netflix',
+        'fecha_recibido' => now()->subMinutes(2),
+        'cuerpo_html' => 'Temporal nuevo',
+        'datos_extraidos' => json_encode([
+            'type' => 'temporary_access',
+            'action_url' => 'https://www.netflix.com/account/travel/code?token=new-temporal',
+        ]),
+        'fecha_procesado_db' => now()->subMinutes(2),
+    ]);
+
+    EmailPedido::query()->create([
+        'destinatario_original' => 'cliente-temporal@example.com',
+        'asunto' => 'Netflix hogar mas nuevo',
+        'remitente' => 'Netflix',
+        'fecha_recibido' => now()->subMinute(),
+        'cuerpo_html' => 'Hogar nuevo',
+        'datos_extraidos' => json_encode([
+            'type' => 'household_update',
+            'action_url' => 'https://www.netflix.com/account/travel/verify?token=new-household',
+        ]),
+        'fecha_procesado_db' => now()->subMinute(),
+    ]);
+
+    $this->postJson('/api/v1/netcode/buscar-email', [
+        'account_id' => $account->id,
+        'subject' => 'temporal',
+    ])
+        ->assertOk()
+        ->assertJsonPath('status', 'success')
+        ->assertJsonPath('found', true)
+        ->assertJsonPath('type', 'link')
+        ->assertJsonPath('value', 'https://www.netflix.com/account/travel/code?token=new-temporal');
+
+    Carbon\Carbon::setTestNow();
+});
+
 it('does not return another account email when searching a selected account', function () {
     $product = Producto::query()->create([
         'nombre' => 'Netflix Premium',

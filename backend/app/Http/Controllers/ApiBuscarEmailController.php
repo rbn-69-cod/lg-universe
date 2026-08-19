@@ -45,7 +45,7 @@ class ApiBuscarEmailController extends Controller
                 ]);
             }
 
-            $validFrom = now()->subMinutes(self::CODE_TTL_MINUTES);
+            $validFrom = now(config('app.timezone'))->subMinutes(self::CODE_TTL_MINUTES);
 
             $emailDataModel = EmailPedido::query()
                 ->where(function ($query) use ($authorizedRecipients) {
@@ -54,8 +54,18 @@ class ApiBuscarEmailController extends Controller
                         $query->{$method}('LOWER(destinatario_original) = ?', [$recipient]);
                     }
                 })
-                ->whereNotNull('fecha_recibido')
-                ->where('fecha_recibido', '>=', $validFrom)
+                ->where(function ($query) use ($validFrom) {
+                    $query->where(function ($nested) use ($validFrom) {
+                        $nested->whereNotNull('fecha_procesado_db')
+                            ->where('fecha_procesado_db', '>', $validFrom);
+                    })->orWhere(function ($nested) use ($validFrom) {
+                        $nested->whereNull('fecha_procesado_db')
+                            ->whereNotNull('fecha_recibido')
+                            ->where('fecha_recibido', '>', $validFrom);
+                    });
+                })
+                ->orderByRaw('COALESCE(fecha_procesado_db, fecha_recibido) DESC')
+                ->orderByDesc('fecha_procesado_db')
                 ->orderBy('fecha_recibido', 'desc')
                 ->orderBy('id', 'desc')
                 ->get()
@@ -112,7 +122,7 @@ class ApiBuscarEmailController extends Controller
                 'value' => $candidate['value'],
                 'email' => $emailDataModel->destinatario_original,
                 'received_at' => $receivedAt,
-                'validity_source' => 'received_at',
+                'validity_source' => $emailDataModel->fecha_procesado_db ? 'processed_at' : 'received_at',
                 'valor_extraido' => $candidate['value'],
                 'tipo' => $candidate['type'],
                 'fecha' => $receivedAt,
@@ -247,8 +257,10 @@ class ApiBuscarEmailController extends Controller
     private function publicVisibilityStart(EmailPedido $email): ?CarbonImmutable
     {
         try {
-            return $email->fecha_recibido
-                ? CarbonImmutable::parse($email->fecha_recibido, config('app.timezone'))
+            $value = $email->fecha_procesado_db ?: $email->fecha_recibido;
+
+            return $value
+                ? CarbonImmutable::parse($value, config('app.timezone'))
                 : null;
         } catch (Throwable) {
             return null;

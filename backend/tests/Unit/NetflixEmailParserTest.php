@@ -182,6 +182,25 @@ it('does not return another netflix link when the button href was not extracted'
     expect($result['action_url'])->toBeNull();
 });
 
+it('does not confuse temporary access with household update when the body mentions hogar con netflix', function () {
+    $parser = new NetflixEmailParser;
+    $actionUrl = 'https://www.netflix.com/account/travel/code?token=temp-123&next=%2Fbrowse';
+
+    $result = $parser->parse(
+        'Netflix',
+        '<html><body>'
+        .'<h1>Tu código de acceso temporal</h1>'
+        .'<p>Utiliza este código durante viajes o para acceder temporalmente al servicio fuera de tu Hogar con Netflix.</p>'
+        .'<a href="'.$actionUrl.'">Obtener código</a>'
+        .'</body></html>',
+        "Netflix\nTu código de acceso temporal\nUtiliza este código durante viajes o para acceder temporalmente al servicio fuera de tu Hogar con Netflix.\nObtener código"
+    );
+
+    expect($result['type'])->toBe('temporary_access');
+    expect($result['action_url'])->toBe($actionUrl);
+    expect($result['code'])->toBeNull();
+});
+
 it('marks unrelated netflix emails as unknown instead of inventing a code or link', function () {
     $parser = new NetflixEmailParser;
 
