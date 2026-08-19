@@ -79,6 +79,8 @@ test('normal users cannot access dashboard administration', function () {
 test('administrator can access dashboard administration', function () {
     $this->actingAs(User::factory()->admin()->create());
 
-    $this->get('/dashboard')->assertRedirect('http://localhost:4200/dashboard');
+    config()->set('app.url', 'https://igruben.lat');
+
+    $this->get('/dashboard')->assertRedirect('https://igruben.lat/dashboard');
     $this->getJson('/api/v1/dashboard')->assertOk();
 });

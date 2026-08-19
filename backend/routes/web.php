@@ -66,7 +66,9 @@ Route::get('/plataformas', function () {
 
 Route::view('/pago', 'pago')->name('pago');
 
-Route::get('/dashboard', fn () => redirect(rtrim((string) env('FRONTEND_URL', 'http://localhost:4200'), '/').'/dashboard'))
+Route::get('/dashboard', fn () => redirect(
+    rtrim((string) env('FRONTEND_URL', env('APP_URL', config('app.url'))), '/').'/dashboard'
+))
     ->middleware(['auth', 'verified', 'admin'])
     ->name('dashboard');
 

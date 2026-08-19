@@ -11,7 +11,9 @@ test('guests are redirected to the login page', function () {
 test('authenticated users are redirected to the angular dashboard', function () {
     $this->actingAs($user = User::factory()->admin()->create());
 
-    $this->get('/dashboard')->assertRedirect('http://localhost:4200/dashboard');
+    config()->set('app.url', 'https://igruben.lat');
+
+    $this->get('/dashboard')->assertRedirect('https://igruben.lat/dashboard');
 });
 
 test('authenticated users can visit the legacy blade dashboard', function () {
