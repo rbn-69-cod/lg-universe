@@ -905,7 +905,7 @@ export class DashboardPage {
   }
 
   openImapItemLink(item: DashboardImapItem): void {
-    const url = item.action_url || item.found_links[0] || null;
+    const url = item.action_url || null;
     if (!url) return;
 
     this.openUrl(url);

@@ -115,6 +115,73 @@ it('rejects download or asset links even if they match the button text and keeps
     expect($result['action_url'])->toBe($realUrl);
 });
 
+it('parses the real household update pattern and returns only the full href of "Si, la envie yo"', function () {
+    $parser = new NetflixEmailParser;
+    $actionUrl = 'https://www.netflix.com/account/travel/verify?g=fa751d93-0da3-4d42-9475-7d6d848de4de&email=adamsultes102%40gmail.com&lang=es-CO';
+    $passwordUrl = 'https://www.netflix.com/password?track=security-warning';
+    $helpUrl = 'https://help.netflix.com/es/node/12345';
+
+    $result = $parser->parse(
+        'Netflix',
+        '<html><body>'
+        .'<h1>¿Solicitaste actualizar tu Hogar con Netflix?</h1>'
+        .'<p>Hola, Lenin:</p>'
+        .'<p>Recibimos una solicitud para actualizar el Hogar con Netflix de tu cuenta el 18 de agosto, 7:56 p. m. COT.</p>'
+        .'<a href="'.$passwordUrl.'">cambiar la contraseña</a>'
+        .'<div><a href="'.$actionUrl.'">Sí, la envié yo</a></div>'
+        .'<a href="'.$helpUrl.'">Centro de ayuda</a>'
+        .'</body></html>',
+        "Netflix\n¿Solicitaste actualizar tu Hogar con Netflix?\nSí, la envié yo\nEl enlace vence en 15 minutos."
+    );
+
+    expect($result['type'])->toBe('household_update');
+    expect($result['code'])->toBeNull();
+    expect($result['action_url'])->toBe($actionUrl);
+});
+
+it('parses the real temporary access pattern and returns only the full href of "Obtener codigo"', function () {
+    $parser = new NetflixEmailParser;
+    $actionUrl = 'https://www.netflix.com/account/travel/code?source=email&token=3309385c-3ba3-4455-9672-3c8880642a9c&next=%2Fbrowse%3Fjbv%3D81234';
+    $logoutUrl = 'https://www.netflix.com/YourAccount?lnktrk=EMP&g=logout-all';
+    $passwordUrl = 'https://www.netflix.com/password?track=temporary-access-warning';
+
+    $result = $parser->parse(
+        'Netflix',
+        '<html><body>'
+        .'<h1>Tu código de acceso temporal</h1>'
+        .'<p>Hola, elisa:</p>'
+        .'<p>Solicitud de elisa desde: Samsung - Smart TV a las 18 de agosto, 9:50 p. m. COT</p>'
+        .'<div><a href="'.$actionUrl.'">Obtener código</a></div>'
+        .'<a href="'.$logoutUrl.'">cerrar sesión de inmediato en todos los dispositivos que no reconozcas</a>'
+        .'<a href="'.$passwordUrl.'">cambiar tu contraseña</a>'
+        .'</body></html>',
+        "Netflix\nTu código de acceso temporal\nObtener código\nEl enlace vence en 15 minutos."
+    );
+
+    expect($result['type'])->toBe('temporary_access');
+    expect($result['code'])->toBeNull();
+    expect($result['action_url'])->toBe($actionUrl);
+});
+
+it('does not return another netflix link when the button href was not extracted', function () {
+    $parser = new NetflixEmailParser;
+    $logoutUrl = 'https://www.netflix.com/YourAccount?lnktrk=EMP&g=logout-all';
+    $passwordUrl = 'https://www.netflix.com/password?track=temporary-access-warning';
+
+    $result = $parser->parse(
+        'Netflix',
+        '<html><body>'
+        .'<h1>Tu código de acceso temporal</h1>'
+        .'<a href="'.$logoutUrl.'">cerrar sesión de inmediato en todos los dispositivos que no reconozcas</a>'
+        .'<a href="'.$passwordUrl.'">cambiar tu contraseña</a>'
+        .'</body></html>',
+        "Netflix\nTu código de acceso temporal\nEl enlace vence en 15 minutos."
+    );
+
+    expect($result['type'])->toBe('temporary_access');
+    expect($result['action_url'])->toBeNull();
+});
+
 it('marks unrelated netflix emails as unknown instead of inventing a code or link', function () {
     $parser = new NetflixEmailParser;
 

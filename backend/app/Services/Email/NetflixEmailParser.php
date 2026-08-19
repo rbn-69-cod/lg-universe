@@ -163,7 +163,7 @@ class NetflixEmailParser
             }
         }
 
-        return $this->singleFallbackLink($html, $plainText, $type);
+        return $this->extractPlainTextActionUrl($plainText, $expectedLabel, $type);
     }
 
     private function extractAnchors(string $html): array
@@ -173,6 +173,38 @@ class NetflixEmailParser
         }
 
         $anchors = [];
+
+        if (class_exists(\DOMDocument::class)) {
+            $previousErrors = libxml_use_internal_errors(true);
+            $document = new \DOMDocument('1.0', 'UTF-8');
+            $loaded = $document->loadHTML(
+                '<?xml encoding="utf-8" ?>'.$html,
+                LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD | LIBXML_NOERROR | LIBXML_NOWARNING
+            );
+
+            if ($loaded) {
+                foreach ($document->getElementsByTagName('a') as $anchorNode) {
+                    $href = trim((string) $anchorNode->getAttribute('href'));
+                    $text = trim(html_entity_decode((string) $anchorNode->textContent, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+
+                    if ($text === '' || $href === '') {
+                        continue;
+                    }
+
+                    $anchors[] = [
+                        'text' => $text,
+                        'href' => html_entity_decode($href, ENT_QUOTES | ENT_HTML5, 'UTF-8'),
+                    ];
+                }
+            }
+
+            libxml_clear_errors();
+            libxml_use_internal_errors($previousErrors);
+        }
+
+        if ($anchors !== []) {
+            return $anchors;
+        }
 
         if (preg_match_all('/<a\b[^>]*href=(["\'])(.*?)\1[^>]*>(.*?)<\/a>/is', $html, $matches, PREG_SET_ORDER)) {
             foreach ($matches as $match) {
@@ -206,14 +238,24 @@ class NetflixEmailParser
             || str_contains($expectedLabel, $normalizedAnchor);
     }
 
-    private function singleFallbackLink(string $html, string $plainText, string $type): ?string
+    private function extractPlainTextActionUrl(string $plainText, string $expectedLabel, string $type): ?string
     {
-        $links = array_values(array_filter(
-            $this->extractLinks($html, $plainText),
-            fn (string $url) => $this->isTrustedNetflixActionUrl($url, $type)
-        ));
+        $lines = preg_split('/\R+/', $this->decodeBody($plainText)) ?: [];
 
-        return count($links) === 1 ? $links[0] : null;
+        foreach ($lines as $index => $line) {
+            if (! $this->isMatchingButtonText($line, $expectedLabel)) {
+                continue;
+            }
+
+            for ($cursor = $index + 1; $cursor <= $index + 3; $cursor++) {
+                $candidate = trim((string) ($lines[$cursor] ?? ''));
+                if ($candidate !== '' && $this->isTrustedNetflixActionUrl($candidate, $type)) {
+                    return html_entity_decode($candidate, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                }
+            }
+        }
+
+        return null;
     }
 
     private function isTrustedNetflixActionUrl(string $url, string $type): bool
@@ -253,31 +295,7 @@ class NetflixEmailParser
             return false;
         }
 
-        $actionHints = match ($type) {
-            'household_update' => [
-                '/account/travel',
-                '/travel/verify',
-                '/travel/confirm',
-                '/update-primary-location',
-                '/household',
-            ],
-            'temporary_access' => [
-                '/account/travel',
-                '/travel/verify',
-                '/travel/code',
-                '/temporary',
-                '/code',
-            ],
-            default => [],
-        };
-
-        foreach ($actionHints as $hint) {
-            if (str_contains($path, $hint)) {
-                return true;
-            }
-        }
-
-        return isset($parts['query']) && str_contains((string) $parts['query'], '=');
+        return true;
     }
 
     private function htmlToText(string $html): string
