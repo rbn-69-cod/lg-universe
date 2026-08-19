@@ -530,6 +530,17 @@ class DashboardApiController extends Controller
         ]);
     }
 
+    public function destroyImapHistoryItem(EmailPedido $emailPedido): JsonResponse
+    {
+        $subject = $emailPedido->asunto ?: ('ID '.$emailPedido->id);
+        $emailPedido->delete();
+
+        return response()->json([
+            'message' => "Correo eliminado: {$subject}",
+            'data' => $this->dashboardData->api(),
+        ]);
+    }
+
     /**
      * @param  array<string, string>  $values
      */

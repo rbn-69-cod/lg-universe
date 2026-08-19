@@ -192,3 +192,41 @@ it('allows admin to clear emails that are no longer visible to the client but re
 
     Carbon::setTestNow();
 });
+
+it('allows admin to delete one email from dashboard history', function () {
+    Carbon::setTestNow(Carbon::create(2026, 8, 18, 18, 45, 0, 'America/Lima'));
+
+    $this->withoutMiddleware(ValidateCsrfToken::class);
+    $this->actingAs(User::factory()->admin()->create());
+
+    $email = EmailPedido::query()->create([
+        'message_id' => '<delete-me@example.com>',
+        'imap_uid' => '301',
+        'destinatario_original' => 'cliente@example.com',
+        'asunto' => 'Netflix borrar',
+        'remitente' => 'Netflix',
+        'fecha_recibido' => now()->subMinutes(4),
+        'cuerpo_html' => '<p>1234</p>',
+        'html_body_original' => '<p>1234</p>',
+        'text_body_original' => '1234',
+        'datos_extraidos' => json_encode([
+            'platform' => 'Netflix',
+            'type' => 'login_code',
+            'code' => '1234',
+            'action_url' => null,
+            'value' => '1234',
+            'extraction_status' => 'success',
+            'found_links' => [],
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        'extraction_status' => 'success',
+        'fecha_procesado_db' => now()->subMinutes(4),
+    ]);
+
+    $this->deleteJson("/api/v1/dashboard/imap-history/{$email->id}")
+        ->assertOk()
+        ->assertJsonPath('data.imap.stored_recent_count', 0);
+
+    expect(EmailPedido::query()->whereKey($email->id)->exists())->toBeFalse();
+
+    Carbon::setTestNow();
+});

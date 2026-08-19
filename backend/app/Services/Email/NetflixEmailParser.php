@@ -152,18 +152,15 @@ class NetflixEmailParser
     private function extractActionUrl(string $html, string $plainText, string $buttonLabel): ?string
     {
         $expectedLabel = $this->normalize($buttonLabel);
+        $anchors = $this->extractAnchors($html);
 
-        foreach ($this->extractAnchors($html) as $anchor) {
-            if ($this->normalize($anchor['text']) === $expectedLabel) {
+        foreach ($anchors as $anchor) {
+            if ($this->isMatchingButtonText((string) $anchor['text'], $expectedLabel)) {
                 return $anchor['href'];
             }
         }
 
-        if (preg_match('/(https?:\/\/[^\s"\'<>]+)/i', $plainText, $matches)) {
-            return html_entity_decode(trim($matches[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        }
-
-        return null;
+        return $this->singleFallbackLink($html, $plainText);
     }
 
     private function extractAnchors(string $html): array
@@ -191,6 +188,26 @@ class NetflixEmailParser
         }
 
         return $anchors;
+    }
+
+    private function isMatchingButtonText(string $anchorText, string $expectedLabel): bool
+    {
+        $normalizedAnchor = $this->normalize($anchorText);
+
+        if ($normalizedAnchor === '') {
+            return false;
+        }
+
+        return $normalizedAnchor === $expectedLabel
+            || str_contains($normalizedAnchor, $expectedLabel)
+            || str_contains($expectedLabel, $normalizedAnchor);
+    }
+
+    private function singleFallbackLink(string $html, string $plainText): ?string
+    {
+        $links = $this->extractLinks($html, $plainText);
+
+        return count($links) === 1 ? $links[0] : null;
     }
 
     private function htmlToText(string $html): string

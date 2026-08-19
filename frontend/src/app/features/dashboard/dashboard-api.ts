@@ -471,6 +471,12 @@ export class DashboardApi {
     }).pipe(catchError((error) => this.handle(error)));
   }
 
+  deleteImapHistoryItem(id: number): Observable<DashboardResponse & { message: string }> {
+    return this.http.delete<DashboardResponse & { message: string }>(`/api/v1/dashboard/imap-history/${id}`, {
+      headers: this.writeHeaders(),
+    }).pipe(catchError((error) => this.handle(error)));
+  }
+
   logout(): Observable<unknown> {
     return this.http.get('/api/v1/dashboard/logout', {
       headers: {

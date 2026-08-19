@@ -63,6 +63,40 @@ it('parses a netflix temporary access email and extracts the original button hre
     expect($result['duration_minutes'])->toBe(15);
 });
 
+it('prefers the exact netflix button href when the email contains multiple links', function () {
+    $parser = new NetflixEmailParser;
+    $expectedUrl = 'https://www.netflix.com/account/travel/verify?token=real-button';
+    $otherUrl = 'https://www.netflix.com/help?track=footer';
+
+    $result = $parser->parse(
+        '¿Solicitaste actualizar tu Hogar con Netflix?',
+        '<html><body>'
+        .'<a href="'.$otherUrl.'">Centro de ayuda</a>'
+        .'<a href="'.$expectedUrl.'"><span>Sí, la</span> <strong>envié yo</strong></a>'
+        .'</body></html>',
+        "Centro de ayuda\nSi, la envie yo"
+    );
+
+    expect($result['type'])->toBe('household_update');
+    expect($result['action_url'])->toBe($expectedUrl);
+});
+
+it('does not invent a fallback link when multiple urls exist but no netflix button match was found', function () {
+    $parser = new NetflixEmailParser;
+
+    $result = $parser->parse(
+        'Tu código de acceso temporal',
+        '<html><body>'
+        .'<a href="https://www.netflix.com/help?one">Ayuda</a>'
+        .'<a href="https://www.netflix.com/help?two">Soporte</a>'
+        .'</body></html>',
+        "Tu código de acceso temporal\nAyuda\nSoporte"
+    );
+
+    expect($result['type'])->toBe('temporary_access');
+    expect($result['action_url'])->toBeNull();
+});
+
 it('marks unrelated netflix emails as unknown instead of inventing a code or link', function () {
     $parser = new NetflixEmailParser;
 

@@ -821,6 +821,25 @@ export class DashboardPage {
     });
   }
 
+  deleteImapHistoryItem(item: DashboardImapItem): void {
+    this.confirmDanger(
+      'Eliminar correo del historial',
+      `Se eliminara el correo ${item.asunto || `#${item.id}`} del dashboard.`
+    ).then((confirmed) => {
+      if (!confirmed) return;
+
+      this.api.deleteImapHistoryItem(item.id).subscribe({
+        next: (response) => {
+          this.data.set(response.data);
+          this.success(response.message || 'Correo eliminado del historial.');
+        },
+        error: (error) => {
+          this.fail(error?.error?.message || 'No se pudo eliminar el correo.');
+        },
+      });
+    });
+  }
+
   saveImapSettings(): void {
     if (this.savingImap()) return;
 
