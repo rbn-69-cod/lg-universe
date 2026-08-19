@@ -228,6 +228,35 @@ input {
   font-weight: 800;
 }
 
+.catalog-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.catalog-meta div {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.catalog-meta small {
+  display: block;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.catalog-meta b {
+  display: block;
+  margin-top: 6px;
+  color: #fff;
+  line-height: 1.4;
+}
+
 .price {
   text-align: right;
   font-size: 24px;
@@ -266,6 +295,37 @@ input {
 .features svg {
   color: #ff2d9e;
   flex: 0 0 auto;
+}
+
+.duration-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.tag-select {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 0 14px;
+  text-align: left;
+  color: rgba(255, 255, 255, 0.84);
+  background: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.tag-select:hover {
+  transform: translateY(-1px);
+  border-color: rgba(0, 243, 255, 0.28);
+}
+
+.tag-select.active {
+  color: #071018;
+  border-color: transparent;
+  background: linear-gradient(135deg, #00e5ff, #7df7c6);
+  font-weight: 900;
 }
 
 .product-info {
@@ -489,6 +549,10 @@ input {
   .price {
     grid-column: 1 / -1;
     text-align: left;
+  }
+
+  .catalog-meta {
+    grid-template-columns: 1fr;
   }
 }
 

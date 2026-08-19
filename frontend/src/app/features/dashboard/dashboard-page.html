@@ -11,7 +11,7 @@
         </div>
 
         <div class="hero-title">Operacion <span>{{ selectedPlatform() }}</span></div>
-        <p class="hero-copy">Controla catalogo, pagos, Excel, cuentas, IMAP, tutoriales y accesos NetCode desde un solo panel.</p>
+        <p class="hero-copy">Gestiona catalogo, pagos, cuentas, correos y automatizaciones desde un solo panel operativo.</p>
       </div>
 
       <div class="hero-actions">
@@ -137,7 +137,7 @@
         <div class="section-head">
           <div>
             <h2>Catalogo de plataformas</h2>
-            <p>Gestiona lo que ve el cliente en /plataformas: nombre, precio, imagen, beneficios, estado y orden.</p>
+            <p>Gestiona lo que ve el cliente en /plataformas: nombre, imagen, beneficios, planes, precios y orden.</p>
           </div>
           <a class="btn" href="/plataformas" target="_blank">Ver tienda</a>
         </div>
@@ -429,7 +429,7 @@
         <form class="range-form" (ngSubmit)="saveRange()">
           <label>
             <span>Plataforma</span>
-            <input [ngModel]="rangeForm().plataforma" (ngModelChange)="updateRangeField('plataforma', $event)" name="plataforma" placeholder="Netflix Premium, Disney, Prime" required />
+            <input [ngModel]="rangeForm().plataforma" (ngModelChange)="updateRangeField('plataforma', $event)" name="plataforma" placeholder="Netflix, Disney, Prime" required />
           </label>
           <label>
             <span>Nombre tabla</span>
@@ -437,7 +437,7 @@
           </label>
           <label>
             <span>Slug producto</span>
-            <input [ngModel]="rangeForm().producto_slug" (ngModelChange)="updateRangeField('producto_slug', $event)" name="producto_slug" placeholder="netflix-premium" />
+            <input [ngModel]="rangeForm().producto_slug" (ngModelChange)="updateRangeField('producto_slug', $event)" name="producto_slug" placeholder="netflix" />
           </label>
           <label class="wide">
             <span>URL del Excel</span>
@@ -521,7 +521,7 @@
                   </div>
 
                   <div class="account-bots">
-                    <button class="btn mini primary" type="button" (click)="editAccountBots(account)">Editar acceso</button>
+                    <button class="btn mini primary" type="button" (click)="editAccountBots(account)">Editar cliente / bot</button>
                   </div>
 
                   @if (editingAccountId() === account.id) {

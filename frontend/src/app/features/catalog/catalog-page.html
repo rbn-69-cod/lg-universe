@@ -4,7 +4,7 @@
       <span class="brand-mark"><svg lucideTv size="25" /></span>
       <div>
         <strong>IG UNIVERSE</strong>
-        <span>Catalogo Premium</span>
+        <span>Catalogo digital</span>
       </div>
     </div>
 
@@ -53,7 +53,7 @@
 
             <div class="product-title">
               <h2>{{ platform.nombre }}</h2>
-              <span><svg lucideCrown size="14" /> PREMIUM ACCESS</span>
+              <span><svg lucideCrown size="14" /> {{ platform.duraciones.length }} duracion{{ platform.duraciones.length === 1 ? '' : 'es' }} activa{{ platform.duraciones.length === 1 ? '' : 's' }}</span>
             </div>
 
             <div class="price">
@@ -76,10 +76,21 @@
             }
           </div>
 
+          <div class="catalog-meta">
+            <div>
+              <small>Entrega</small>
+              <b>{{ platform.activacion || 'Coordinada despues del pago' }}</b>
+            </div>
+            <div>
+              <small>Planes</small>
+              <b>{{ platform.duraciones.length }} opcion{{ platform.duraciones.length === 1 ? '' : 'es' }}</b>
+            </div>
+          </div>
+
           <div class="product-info">
             <details open>
               <summary>Duraciones disponibles</summary>
-              <div class="features">
+              <div class="duration-list">
                 @for (duration of platform.duraciones; track duration.id ?? duration.duracion_meses) {
                   <button
                     type="button"
@@ -105,11 +116,11 @@
           <div class="actions">
             <button class="primary" type="button" (click)="addToCart(platform)">
               <svg lucideShoppingCart size="16" />
-              AGREGAR
+              AGREGAR AL PEDIDO
             </button>
             <button type="button" (click)="buyNow(platform)">
               <svg lucideBolt size="16" />
-              PAGAR AHORA
+              COMPRAR AHORA
             </button>
           </div>
         </article>
