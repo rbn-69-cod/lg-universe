@@ -18,7 +18,7 @@ class NetflixEmailParser
                 'platform' => 'Netflix',
                 'type' => 'household_update',
                 'code' => null,
-                'action_url' => $this->extractActionUrl($decodedHtml, $searchableText, 'si la envie yo'),
+                'action_url' => $this->extractActionUrl($decodedHtml, $searchableText, 'si la envie yo', 'household_update'),
                 'duration_minutes' => $durationMinutes,
             ];
         }
@@ -28,7 +28,7 @@ class NetflixEmailParser
                 'platform' => 'Netflix',
                 'type' => 'temporary_access',
                 'code' => null,
-                'action_url' => $this->extractActionUrl($decodedHtml, $searchableText, 'obtener codigo'),
+                'action_url' => $this->extractActionUrl($decodedHtml, $searchableText, 'obtener codigo', 'temporary_access'),
                 'duration_minutes' => $durationMinutes,
             ];
         }
@@ -149,18 +149,21 @@ class NetflixEmailParser
         return null;
     }
 
-    private function extractActionUrl(string $html, string $plainText, string $buttonLabel): ?string
+    private function extractActionUrl(string $html, string $plainText, string $buttonLabel, string $type): ?string
     {
         $expectedLabel = $this->normalize($buttonLabel);
         $anchors = $this->extractAnchors($html);
 
         foreach ($anchors as $anchor) {
-            if ($this->isMatchingButtonText((string) $anchor['text'], $expectedLabel)) {
+            if (
+                $this->isMatchingButtonText((string) $anchor['text'], $expectedLabel)
+                && $this->isTrustedNetflixActionUrl((string) $anchor['href'], $type)
+            ) {
                 return $anchor['href'];
             }
         }
 
-        return $this->singleFallbackLink($html, $plainText);
+        return $this->singleFallbackLink($html, $plainText, $type);
     }
 
     private function extractAnchors(string $html): array
@@ -203,11 +206,78 @@ class NetflixEmailParser
             || str_contains($expectedLabel, $normalizedAnchor);
     }
 
-    private function singleFallbackLink(string $html, string $plainText): ?string
+    private function singleFallbackLink(string $html, string $plainText, string $type): ?string
     {
-        $links = $this->extractLinks($html, $plainText);
+        $links = array_values(array_filter(
+            $this->extractLinks($html, $plainText),
+            fn (string $url) => $this->isTrustedNetflixActionUrl($url, $type)
+        ));
 
         return count($links) === 1 ? $links[0] : null;
+    }
+
+    private function isTrustedNetflixActionUrl(string $url, string $type): bool
+    {
+        $url = html_entity_decode(trim($url), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        if ($url === '' || ! preg_match('/^https?:\/\//i', $url)) {
+            return false;
+        }
+
+        $parts = parse_url($url);
+        $host = mb_strtolower((string) ($parts['host'] ?? ''), 'UTF-8');
+        $path = mb_strtolower((string) ($parts['path'] ?? ''), 'UTF-8');
+
+        if ($host === '' || ! preg_match('/(^|\.)netflix\.com$/i', $host)) {
+            return false;
+        }
+
+        if ($path === '' || $path === '/') {
+            return false;
+        }
+
+        if (preg_match('/\.(apk|bin|csv|doc|docx|exe|gif|ics|jpeg|jpg|mov|mp3|mp4|pdf|pkg|png|rar|svg|txt|webm|webp|xls|xlsx|zip)$/i', $path)) {
+            return false;
+        }
+
+        if (
+            str_contains($path, '/help')
+            || str_contains($path, '/support')
+            || str_contains($path, '/download')
+            || str_contains($path, '/unsubscribe')
+            || str_contains($path, '/static')
+            || str_contains($path, '/image')
+            || str_contains($path, '/images')
+            || str_contains($path, '/assets')
+            || str_contains($path, '/signup')
+        ) {
+            return false;
+        }
+
+        $actionHints = match ($type) {
+            'household_update' => [
+                '/account/travel',
+                '/travel/verify',
+                '/travel/confirm',
+                '/update-primary-location',
+                '/household',
+            ],
+            'temporary_access' => [
+                '/account/travel',
+                '/travel/verify',
+                '/travel/code',
+                '/temporary',
+                '/code',
+            ],
+            default => [],
+        };
+
+        foreach ($actionHints as $hint) {
+            if (str_contains($path, $hint)) {
+                return true;
+            }
+        }
+
+        return isset($parts['query']) && str_contains((string) $parts['query'], '=');
     }
 
     private function htmlToText(string $html): string

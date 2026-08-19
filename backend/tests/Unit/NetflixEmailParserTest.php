@@ -97,6 +97,24 @@ it('does not invent a fallback link when multiple urls exist but no netflix butt
     expect($result['action_url'])->toBeNull();
 });
 
+it('rejects download or asset links even if they match the button text and keeps the real netflix action url', function () {
+    $parser = new NetflixEmailParser;
+    $downloadUrl = 'https://www.netflix.com/assets/button/download.pdf';
+    $realUrl = 'https://www.netflix.com/account/travel/verify?token=real-household';
+
+    $result = $parser->parse(
+        '¿Solicitaste actualizar tu Hogar con Netflix?',
+        '<html><body>'
+        .'<a href="'.$downloadUrl.'">Sí, la envié yo</a>'
+        .'<a href="'.$realUrl.'">Sí, la envié yo</a>'
+        .'</body></html>',
+        "Sí, la envié yo"
+    );
+
+    expect($result['type'])->toBe('household_update');
+    expect($result['action_url'])->toBe($realUrl);
+});
+
 it('marks unrelated netflix emails as unknown instead of inventing a code or link', function () {
     $parser = new NetflixEmailParser;
 
