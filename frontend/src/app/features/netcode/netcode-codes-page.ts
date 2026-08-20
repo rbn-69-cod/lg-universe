@@ -11,6 +11,7 @@ import {
   LucideMail,
   LucideRefreshCcw,
 } from '@lucide/angular';
+import Swal from 'sweetalert2';
 
 import { NetcodeApi, NetcodeSearchSubject, Tutorial } from './netcode-api';
 import { LgMonogramLogo } from '../../shared/lg-monogram-logo';
@@ -92,7 +93,7 @@ export class NetcodeCodesPage {
     this.selectedMode.set(mode);
   }
 
-  start(mode: Mode): void {
+  async start(mode: Mode): Promise<void> {
     this.selectedMode.set(mode);
     const currentEmail = this.email().trim().toLowerCase();
 
@@ -102,8 +103,17 @@ export class NetcodeCodesPage {
     }
 
     const label = mode === 'hogar' ? 'Code hogar' : 'Code temporal';
-    const accepted = window.confirm(`${label}\n\nConfirma que Netflix ya envio el correo.`);
-    if (!accepted) return;
+    const accepted = await Swal.fire({
+      title: label,
+      text: 'Confirma que Netflix ya envio el correo.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Aceptar',
+      cancelButtonText: 'Cancelar',
+      background: '#111426',
+      color: '#fff',
+    });
+    if (!accepted.isConfirmed) return;
 
     this.email.set(currentEmail);
     this.resultValue.set('');
@@ -150,7 +160,16 @@ export class NetcodeCodesPage {
     navigator.clipboard
       ?.writeText(value)
       .then(() => this.showToast('Copiado'))
-      .catch(() => window.alert(value));
+      .catch(() =>
+        void Swal.fire({
+          title: 'No se pudo copiar',
+          text: value,
+          icon: 'info',
+          confirmButtonText: 'Entendido',
+          background: '#111426',
+          color: '#fff',
+        })
+      );
   }
 
   openTutorial(key: string): void {
@@ -238,7 +257,14 @@ export class NetcodeCodesPage {
 
     if (current <= 0) {
       this.stop();
-      window.alert('No encontrado\n\nReenvia el correo desde Netflix e intenta otra vez.');
+      void Swal.fire({
+        title: 'No encontrado',
+        text: 'Reenvia el correo desde Netflix e intenta otra vez.',
+        icon: 'warning',
+        confirmButtonText: 'Entendido',
+        background: '#111426',
+        color: '#fff',
+      });
       this.reset();
       return;
     }
