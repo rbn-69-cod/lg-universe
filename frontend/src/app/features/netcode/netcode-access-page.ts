@@ -29,7 +29,7 @@ type ViewState = 'access' | 'scan' | 'result';
 type SearchResultType = 'codigo' | 'link' | 'login';
 
 const MAX_TIME = 60;
-const POLL_MS = 4000;
+const POLL_MS = 2000;
 const MAX_SEARCH_ATTEMPTS = 2;
 
 @Component({

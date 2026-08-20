@@ -19,7 +19,7 @@ type Mode = 'hogar' | 'temporal';
 type ViewState = 'form' | 'scan' | 'result';
 
 const MAX_TIME = 60;
-const POLL_MS = 4000;
+const POLL_MS = 2000;
 
 @Component({
   selector: 'app-netcode-codes-page',
